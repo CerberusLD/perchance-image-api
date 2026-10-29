@@ -23,4 +23,4 @@ RUN python -m camoufox fetch
 COPY perchance_client.py server.py perchance-styles.json ./
 
 EXPOSE 8000
-CMD ["gunicorn", "-w", "1", "-t", "600", "-b", "0.0.0.0:8000", "server:app"]
+CMD gunicorn -w 1 -t 600 -b 0.0.0.0:${PORT:-8000} server:app

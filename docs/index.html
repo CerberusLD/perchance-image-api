@@ -3,413 +3,233 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Perchance Image API — painel</title>
-<meta name="description" content="Frontend estático (GitHub Pages) para a API Perchance com backend Flask + Camoufox.">
+<title>Perchance Image API — API de geração de imagens</title>
+<meta name="description" content="API open-source para gerar imagens com Perchance. Flask + Camoufox no Render, frontend estático no GitHub Pages.">
+<meta property="og:title" content="Perchance Image API">
+<meta property="og:description" content="API open-source para gerar imagens com Perchance. Flask + Camoufox no Render.">
 <style>
   :root {
-    --bg:#070b12; --bg2:#0d1420; --card:#111a29; --card2:#152033;
-    --fg:#e8eef7; --muted:#93a1b5; --accent:#5b8cff; --accent2:#8b5cf6;
-    --border:#22304a; --ok:#3ddc97; --warn:#ffcc66; --err:#ff6b6b;
+    --bg:#070b12; --card:#101827; --card2:#0c1320; --fg:#e8eef7; --muted:#93a1b5;
+    --accent:#5b8cff; --accent2:#8b5cf6; --border:#22304a; --ok:#3ddc97; --warn:#ffcc66;
   }
-  * { box-sizing: border-box; }
+  * { box-sizing:border-box; }
   html, body { margin:0; padding:0; }
   body {
     font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    background: radial-gradient(1200px 600px at 20% -10%, #16233d 0%, var(--bg) 55%) no-repeat, var(--bg);
-    color: var(--fg); min-height:100vh;
+    background: radial-gradient(1100px 600px at 15% -10%, #17243d 0%, var(--bg) 55%) no-repeat, var(--bg);
+    color: var(--fg); line-height:1.6;
   }
-  a { color: var(--accent); }
+  a { color: var(--accent); text-decoration:none; }
+  a:hover { text-decoration:underline; }
   code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-  .wrap { max-width: 1120px; margin: 0 auto; padding: 40px 20px 80px; }
-  header.hero { display:flex; gap:18px; align-items:center; flex-wrap:wrap; margin-bottom:8px; }
-  .logo { width:52px; height:52px; border-radius:14px; background:linear-gradient(135deg,var(--accent),var(--accent2));
-          display:grid; place-items:center; font-size:26px; }
-  h1 { font-size: clamp(1.5rem, 3vw, 2.2rem); margin: 0; letter-spacing:-.02em; }
-  .sub { color:var(--muted); font-size:.9rem; }
-  .badges { display:flex; gap:8px; flex-wrap:wrap; margin: 10px 0 22px; }
-  .badge { font-size:.75rem; padding:5px 10px; border-radius:999px; border:1px solid var(--border);
-           background:var(--card); color:var(--muted); }
-  .badge.green { color:var(--ok); border-color:#1f4d3a; background:#0e241b; }
-  .badge.warn { color:var(--warn); border-color:#4d3f1f; background:#241f0e; }
+  .wrap { max-width: 1080px; margin:0 auto; padding: 0 20px; }
 
-  .notice { border:1px solid #4d3f1f; background:#1d1a10; color:#ffe1a3; border-radius:14px;
-            padding:14px 16px; font-size:.86rem; line-height:1.55; margin-bottom:22px; }
-  .notice b { color:#ffd166; }
+  nav { display:flex; align-items:center; justify-content:space-between; padding: 22px 0; }
+  .brand { display:flex; align-items:center; gap:12px; font-weight:700; }
+  .logo { width:38px; height:38px; border-radius:11px; display:grid; place-items:center; font-size:20px;
+          background:linear-gradient(135deg,var(--accent),var(--accent2)); }
+  .navlinks { display:flex; gap:20px; font-size:.88rem; color:var(--muted); }
+  .navlinks a { color:var(--muted); }
+  .navlinks a:hover { color:var(--fg); text-decoration:none; }
+  @media (max-width:640px){ .navlinks { display:none; } }
 
-  .config { display:flex; gap:10px; flex-wrap:wrap; align-items:center; background:var(--card);
-            border:1px solid var(--border); border-radius:16px; padding:14px; margin-bottom:22px; }
-  .config input { flex:1; min-width:240px; }
-  .dot { width:10px; height:10px; border-radius:50%; background:#555; display:inline-block; }
-  .dot.ok { background:var(--ok); box-shadow:0 0 10px var(--ok); }
-  .dot.err { background:var(--err); box-shadow:0 0 10px var(--err); }
+  .hero { padding: 64px 0 40px; text-align:center; }
+  .pill { display:inline-flex; gap:8px; align-items:center; font-size:.76rem; color:var(--ok);
+          border:1px solid #1f4d3a; background:#0e241b; padding:6px 12px; border-radius:999px; margin-bottom:18px; }
+  h1 { font-size: clamp(2rem, 5vw, 3.2rem); line-height:1.1; letter-spacing:-.03em; margin:0 0 18px; }
+  h1 .grad { background:linear-gradient(135deg,var(--accent),var(--accent2));
+             -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .lead { color:var(--muted); font-size:1.08rem; max-width:640px; margin:0 auto 28px; }
+  .cta { display:flex; gap:12px; justify-content:center; flex-wrap:wrap; }
+  .btn { display:inline-flex; align-items:center; gap:8px; padding:12px 20px; border-radius:12px;
+         font-weight:700; font-size:.92rem; border:1px solid var(--border); color:var(--fg); background:var(--card); }
+  .btn.primary { background:linear-gradient(135deg,var(--accent),var(--accent2)); border:0; color:#fff; }
+  .btn:hover { text-decoration:none; filter:brightness(1.08); }
 
-  .grid { display:grid; grid-template-columns: 1.05fr .95fr; gap:22px; }
-  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
-  .card { background:linear-gradient(180deg,var(--card),var(--card2)); border:1px solid var(--border);
-          border-radius:18px; padding:20px; }
-  .card h2 { font-size:1rem; margin:0 0 14px; display:flex; align-items:center; gap:8px; }
-  label { display:block; font-size:.8rem; color:var(--muted); margin:0 0 6px; }
-  textarea, input, select {
-    width:100%; background:#0b1320; color:var(--fg); border:1px solid var(--border);
-    border-radius:12px; padding:12px 13px; font-size:.92rem; outline:none;
-  }
-  textarea:focus, input:focus, select:focus { border-color:var(--accent); }
-  textarea { resize:vertical; min-height:86px; }
-  .row { display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
-  .row3 { display:grid; grid-template-columns: 1fr 1fr 1fr; gap:12px; }
-  .field { margin-bottom:14px; }
-  .btn { border:0; border-radius:12px; padding:13px 16px; font-size:.95rem; font-weight:700;
-         color:#fff; cursor:pointer; background:linear-gradient(135deg,var(--accent),var(--accent2)); }
-  .btn:disabled { opacity:.55; cursor:wait; }
-  .btn.ghost { background:#13203a; border:1px solid var(--border); color:var(--fg); font-weight:600; }
-  .status { font-size:.82rem; color:var(--muted); margin-top:12px; min-height:20px; }
-  .status.err { color:var(--err); }
-  .status.ok { color:var(--ok); }
-  .results { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
-  .results img { width:100%; border-radius:12px; border:1px solid var(--border); display:block; }
-  .results .ph { aspect-ratio:1; border:1px dashed var(--border); border-radius:12px; display:grid;
-                 place-items:center; color:var(--muted); font-size:.8rem; }
-  pre.code { background:#0a111d; border:1px solid var(--border); border-radius:12px; padding:14px;
-             overflow:auto; font-size:.79rem; line-height:1.55; color:#cfe0ff; }
-  .tabs { display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap; }
-  .tab { font-size:.8rem; padding:7px 12px; border-radius:999px; border:1px solid var(--border);
-         background:#0b1320; color:var(--muted); cursor:pointer; }
-  .tab.active { color:#fff; border-color:var(--accent); background:#13203a; }
-  .styles { display:flex; flex-wrap:wrap; gap:7px; max-height:220px; overflow:auto; padding-right:4px; }
-  .chip { font-size:.74rem; padding:5px 9px; border-radius:999px; background:#0b1320;
-          border:1px solid var(--border); color:var(--muted); cursor:pointer; }
-  .chip:hover { color:#fff; border-color:var(--accent); }
-  footer { margin-top:40px; color:var(--muted); font-size:.8rem; text-align:center; }
-  .hint { font-size:.75rem; color:var(--muted); margin-top:6px; line-height:1.5; }
-  .kbd { font-size:.75rem; background:#0b1320; border:1px solid var(--border); border-radius:6px; padding:2px 6px; }
+  section { padding: 46px 0; }
+  h2 { font-size:1.5rem; letter-spacing:-.02em; margin:0 0 8px; }
+  .section-sub { color:var(--muted); margin:0 0 26px; font-size:.95rem; }
+
+  .steps { display:grid; grid-template-columns: repeat(3, 1fr); gap:16px; }
+  @media (max-width:820px){ .steps { grid-template-columns:1fr; } }
+  .step { background:linear-gradient(180deg,var(--card),var(--card2)); border:1px solid var(--border);
+          border-radius:16px; padding:20px; }
+  .step .n { width:30px; height:30px; border-radius:9px; display:grid; place-items:center; font-weight:800;
+             background:#13203a; color:var(--accent); margin-bottom:12px; font-size:.85rem; }
+  .step h3 { margin:0 0 6px; font-size:1rem; }
+  .step p { margin:0; color:var(--muted); font-size:.88rem; }
+
+  .features { display:grid; grid-template-columns: repeat(3, 1fr); gap:16px; }
+  @media (max-width:820px){ .features { grid-template-columns:1fr 1fr; } }
+  @media (max-width:520px){ .features { grid-template-columns:1fr; } }
+  .feature { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:18px; }
+  .feature .ico { font-size:1.4rem; margin-bottom:8px; }
+  .feature h3 { margin:0 0 5px; font-size:.96rem; }
+  .feature p { margin:0; color:var(--muted); font-size:.85rem; }
+
+  .split { display:grid; grid-template-columns: 1fr 1fr; gap:22px; }
+  @media (max-width:860px){ .split { grid-template-columns:1fr; } }
+  pre { background:#0a111d; border:1px solid var(--border); border-radius:14px; padding:16px;
+        overflow:auto; font-size:.8rem; line-height:1.6; color:#cfe0ff; margin:0; }
+  .hint { color:var(--muted); font-size:.82rem; margin-top:10px; }
+
+  table { width:100%; border-collapse:collapse; font-size:.87rem; }
+  th, td { text-align:left; padding:10px 12px; border-bottom:1px solid var(--border); }
+  th { color:var(--muted); font-weight:600; }
+  .tag { font-size:.72rem; padding:3px 8px; border-radius:999px; background:#13203a; color:#bcd0ff; }
+
+  .deploy { background:linear-gradient(180deg,#101b2e,#0b1320); border:1px solid var(--border);
+            border-radius:20px; padding:28px; }
+  .deploy ol { margin:0; padding-left:20px; }
+  .deploy li { margin-bottom:10px; color:var(--muted); font-size:.9rem; }
+  .deploy li b { color:var(--fg); }
+  .note { border:1px solid #4d3f1f; background:#1d1a10; color:#ffe1a3; border-radius:12px;
+          padding:12px 14px; font-size:.83rem; margin-top:18px; }
+
+  footer { border-top:1px solid var(--border); margin-top:30px; padding:26px 0 40px;
+           color:var(--muted); font-size:.82rem; display:flex; justify-content:space-between; flex-wrap:wrap; gap:10px; }
 </style>
 </head>
 <body>
 <div class="wrap">
 
+  <nav>
+    <div class="brand"><div class="logo">🎨</div> Perchance Image API</div>
+    <div class="navlinks">
+      <a href="api.html">API</a>
+      <a href="#como-funciona">Como funciona</a>
+      <a href="#deploy">Deploy</a>
+      <a href="https://github.com/CerberusLD/perchance-image-api">GitHub</a>
+    </div>
+  </nav>
+
   <header class="hero">
-    <div class="logo">🎨</div>
-    <div>
-      <h1>Perchance Image API</h1>
-      <div class="sub">Painel estático (GitHub Pages) + API Flask/Camoufox</div>
+    <div class="pill">● open source · MIT · self-hosted</div>
+    <h1>Gere imagens com Perchance<br><span class="grad">através de uma API simples</span></h1>
+    <p class="lead">
+      Uma API REST open-source que envolve o gerador de imagens do Perchance com Flask + Camoufox.
+      76 estilos, resoluções, seed, negative prompt e controle de guidance — sem chave, sem cadastro.
+    </p>
+    <div class="cta">
+      <a class="btn primary" href="https://render.com/deploy?repo=https://github.com/CerberusLD/perchance-image-api">▲ Deploy no Render</a>
+      <a class="btn" href="https://github.com/CerberusLD/perchance-image-api">★ Ver no GitHub</a>
+      <a class="btn" href="api.html">📖 Referência da API</a>
     </div>
   </header>
 
-  <div class="badges">
-    <span class="badge green">frontend 100% estático</span>
-    <span class="badge">GitHub Pages</span>
-    <span class="badge">backend Flask</span>
-    <span class="badge">Camoufox anti-bot</span>
-    <span class="badge warn">Pages não executa servidor</span>
-  </div>
-
-  <div class="notice">
-    <b>Importante:</b> o GitHub Pages é hospedagem estática — ele não roda Python, não abre navegador e não pode
-    contornar o Cloudflare/Turnstile. A Perchance também bloqueia iframes de outros domínios
-    (<code>X-Frame-Options: sameorigin</code>) e o endpoint do ad code não tem CORS. Por isso a geração real roda no
-    <code>server.py</code> (Flask + Camoufox). Configure abaixo a URL pública desse servidor (local, VPS, Render,
-    Railway, Fly.io) e esta página vira o painel completo da API.
-  </div>
-
-  <div class="config">
-    <span id="dot" class="dot"></span>
-    <input id="base" placeholder="http://127.0.0.1:8000">
-    <button class="btn" id="save">Salvar e testar</button>
-    <span id="cfgStatus" class="status" style="margin:0;"></span>
-  </div>
-
-  <div class="grid">
-    <!-- Playground -->
-    <section class="card">
-      <h2>🕹️ Playground</h2>
-
-      <div class="field">
-        <label for="prompt">Prompt</label>
-        <textarea id="prompt">a cute orange cat sitting on a windowsill, soft morning light</textarea>
+  <section id="como-funciona">
+    <h2>Como funciona</h2>
+    <p class="section-sub">Três camadas, cada uma no seu lugar.</p>
+    <div class="steps">
+      <div class="step">
+        <div class="n">1</div>
+        <h3>Esta página (GitHub Pages)</h3>
+        <p>Site estático de introdução e documentação. Não executa backend nem contorna Cloudflare.</p>
       </div>
-
-      <div class="field">
-        <label for="style">Estilo</label>
-        <select id="style"><option value="">— sem estilo —</option></select>
+      <div class="step">
+        <div class="n">2</div>
+        <h3>API (Render + Docker)</h3>
+        <p>Flask recebe seu prompt e usa Camoufox (Firefox anti-detect) para passar pelo Turnstile e gerar a imagem.</p>
       </div>
-
-      <div class="row">
-        <div class="field">
-          <label for="resolution">Resolução</label>
-          <select id="resolution">
-            <option>512x512</option>
-            <option selected>768x768</option>
-            <option>512x768</option>
-            <option>768x512</option>
-          </select>
-        </div>
-        <div class="field">
-          <label for="count">Quantidade</label>
-          <select id="count">
-            <option value="1" selected>1</option>
-            <option value="2">2</option>
-            <option value="4">4</option>
-          </select>
-        </div>
+      <div class="step">
+        <div class="n">3</div>
+        <h3>Perchance</h3>
+        <p>O navegador verificado chama a API interna do Perchance e devolve o JPEG para o seu app.</p>
       </div>
-
-      <div class="row3">
-        <div class="field">
-          <label for="guidance">Guidance <span id="gval">7</span></label>
-          <input id="guidance" type="range" min="1" max="30" value="7" step="1">
-        </div>
-        <div class="field">
-          <label for="seed">Seed</label>
-          <input id="seed" type="number" placeholder="aleatório">
-        </div>
-        <div class="field">
-          <label for="negative">Negative</label>
-          <input id="negative" placeholder="blurry, low quality">
-        </div>
-      </div>
-
-      <button class="btn" id="go" style="width:100%">✨ Gerar</button>
-      <div class="status" id="status">Configure a API acima.</div>
-    </section>
-
-    <!-- Results -->
-    <section class="card">
-      <h2>🖼️ Resultado</h2>
-      <div class="results" id="results">
-        <div class="ph">aguardando</div>
-        <div class="ph">aguardando</div>
-      </div>
-      <div class="hint">As imagens vêm do backend em base64 (JPEG). Use o botão direito → salvar.</div>
-    </section>
-  </div>
-
-  <!-- API docs -->
-  <section class="card" style="margin-top:22px;">
-    <h2>🔌 API HTTP do backend</h2>
-    <div class="tabs">
-      <button class="tab active" data-tab="curl">cURL</button>
-      <button class="tab" data-tab="js">JS SDK</button>
-      <button class="tab" data-tab="endpoints">Endpoints</button>
-      <button class="tab" data-tab="deploy">Deploy</button>
     </div>
+  </section>
 
-    <div class="tabpane" id="pane-curl">
-      <pre class="code"># imagem direta
-curl "https://SEU-BACKEND/generate?prompt=a%20cute%20cat&style=Cinematic&resolution=768x768" -o cat.jpg
+  <section>
+    <h2>Recursos</h2>
+    <p class="section-sub">O que você controla pela API.</p>
+    <div class="features">
+      <div class="feature"><div class="ico">🎨</div><h3>76 estilos</h3><p>Cinematic, Anime, Oil Painting, Pixel Art, Studio Ghibli, Watercolor e mais.</p></div>
+      <div class="feature"><div class="ico">📐</div><h3>Resoluções</h3><p>512×512, 512×768, 768×512 e 768×768.</p></div>
+      <div class="feature"><div class="ico">🎲</div><h3>Seed</h3><p>Reproduza ou varie imagens com o mesmo prompt.</p></div>
+      <div class="feature"><div class="ico">🚫</div><h3>Negative prompt</h3><p>Diga o que evitar: blurry, low quality, watermark...</p></div>
+      <div class="feature"><div class="ico">🎚️</div><h3>Guidance 1–30</h3><p>Aderência ao prompt, de criativo a literal.</p></div>
+      <div class="feature"><div class="ico">🛡️</div><h3>Anti-bot</h3><p>Camoufox resolve o Cloudflare Turnstile de forma realista.</p></div>
+      <div class="feature"><div class="ico">🌐</div><h3>CORS liberado</h3><p>Chame direto do seu frontend, em qualquer domínio.</p></div>
+      <div class="feature"><div class="ico">🐳</div><h3>Docker</h3><p>Dockerfile pronto para Render, Railway, Fly ou VPS.</p></div>
+      <div class="feature"><div class="ico">📦</div><h3>SDK JS</h3><p><code>perchance-api.js</code> com generate e generateBatch.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Comece em segundos</h2>
+    <p class="section-sub">Depois de publicar a API no Render, troque <code>SEU-SERVICO</code> pela sua URL.</p>
+    <div class="split">
+      <div>
+        <pre># imagem direta (JPEG)
+curl "https://SEU-SERVICO.onrender.com/generate?prompt=a%20cute%20cat&amp;style=Cinematic&amp;resolution=768x768" -o cat.jpg
 
 # JSON com base64
-curl -X POST https://SEU-BACKEND/generate \
+curl -X POST https://SEU-SERVICO.onrender.com/generate \
   -H "Content-Type: application/json" \
-  -d '{"prompt":"cyberpunk city","style":"Pixel Art","resolution":"768x512","seed":42,"response_format":"json"}'
-
-# saúde e estilos
-curl https://SEU-BACKEND/health
-curl https://SEU-BACKEND/styles</pre>
-    </div>
-
-    <div class="tabpane" id="pane-js" hidden>
-      <pre class="code">&lt;script src="https://SEU-USUARIO.github.io/perchance-image-api/perchance-api.js"&gt;&lt;/script&gt;
+  -d '{
+    "prompt": "cyberpunk city at night",
+    "style": "Pixel Art",
+    "resolution": "768x512",
+    "seed": 42,
+    "response_format": "json"
+  }'</pre>
+        <div class="hint">A primeira chamada após o deploy aquece o navegador (30–90 s).</div>
+      </div>
+      <div>
+        <pre>&lt;script src="perchance-api.js"&gt;&lt;/script&gt;
 &lt;script&gt;
-  PerchanceAPI.setBase("https://SEU-BACKEND");
+  PerchanceAPI.setBase("https://SEU-SERVICO.onrender.com");
 
   const r = await PerchanceAPI.generate("a cute cat", {
-    style: "Cinematic",
+    style: "Studio Ghibli",
     resolution: "768x768",
     guidanceScale: 7,
     seed: 12345,
     negativePrompt: "blurry, low quality"
   });
 
-  img.src = r.dataUrl;          // base64 pronto para exibir
-  console.log(r.seed, r.width, r.height);
-
-  // lote
-  const many = await PerchanceAPI.generateBatch("cyberpunk city", {resolution:"768x512"}, 2);
+  document.querySelector("img").src = r.dataUrl;
 &lt;/script&gt;</pre>
-    </div>
-
-    <div class="tabpane" id="pane-endpoints" hidden>
-      <pre class="code">GET  /health                  -> { status, ready }
-GET  /styles                  -> ["Cinematic", "Anime", ...]
-GET  /generate?prompt=...     -> image/jpeg
-POST /generate                -> JSON (response_format=json)
-
-POST body:
-{
-  "prompt": "a cute cat",              // obrigatório
-  "negative_prompt": "blurry",         // opcional
-  "resolution": "768x768",             // 512x512 | 512x768 | 768x512 | 768x768
-  "guidance_scale": 7.0,               // 1–30
-  "seed": 12345,                       // -1 = aleatório
-  "style": "Cinematic",                // opcional (76 estilos)
-  "response_format": "json"            // json => { ok, image_b64, seed, width, height, ... }
-}</pre>
-    </div>
-
-    <div class="tabpane" id="pane-deploy" hidden>
-      <pre class="code"># Local
-.venv/bin/python server.py            # http://127.0.0.1:8000
-
-# VPS / Render / Railway / Fly (Docker incluso no repo)
-docker build -t perchance-api .
-docker run -p 8000:8000 perchance-api
-
-# GitHub Pages (este site)
-Settings -> Pages -> Source: GitHub Actions
-# O workflow .github/workflows/pages.yml publica a pasta docs/</pre>
-      <div class="hint">
-        O Pages serve apenas o frontend. Para a geração funcionar de qualquer lugar, publique o
-        <code>server.py</code> (Docker) e cole a URL no campo acima. O backend já responde com CORS liberado.
+        <div class="hint">O SDK chama o backend e devolve <code>dataUrl</code> + metadados.</div>
       </div>
     </div>
   </section>
 
-  <!-- Styles -->
-  <section class="card" style="margin-top:22px;">
-    <h2>🎨 Estilos <span style="color:var(--muted); font-weight:400; font-size:.8rem;">(clique para usar)</span></h2>
-    <div class="styles" id="styles"></div>
+  <section>
+    <h2>Endpoints</h2>
+    <table>
+      <tr><th>Método</th><th>Rota</th><th>Descrição</th></tr>
+      <tr><td><span class="tag">GET</span></td><td><code>/health</code></td><td>Status do serviço e se o navegador está pronto</td></tr>
+      <tr><td><span class="tag">GET</span></td><td><code>/warmup</code></td><td>Inicia o Camoufox (chame uma vez após o deploy)</td></tr>
+      <tr><td><span class="tag">GET</span></td><td><code>/styles</code></td><td>Lista os 76 estilos</td></tr>
+      <tr><td><span class="tag">GET</span></td><td><code>/generate?prompt=...</code></td><td>Retorna a imagem JPEG</td></tr>
+      <tr><td><span class="tag">POST</span></td><td><code>/generate</code></td><td>JSON (<code>response_format=json</code>) ou JPEG</td></tr>
+    </table>
+  </section>
+
+  <section id="deploy">
+    <h2>Deploy no Render</h2>
+    <p class="section-sub">O servidor é um container Docker; o Render builda e hospeda.</p>
+    <div class="deploy">
+      <ol>
+        <li><b>Fork</b> ou use este repositório no Render.</li>
+        <li><b>New → Blueprint</b> e selecione o repositório (o <code>render.yaml</code> já está pronto).</li>
+        <li>Aguarde o build (instala dependências e baixa o Firefox do Camoufox).</li>
+        <li>Abra <code>https://SEU-SERVICO.onrender.com/warmup</code> uma vez.</li>
+        <li>Teste <code>/health</code> → <code>{"status":"ok","ready":true}</code>.</li>
+      </ol>
+      <div class="note">
+        O plano gratuito do Render tem 512 MB de RAM. O Camoufox é um Firefox completo e pode ficar apertado;
+        se o serviço reiniciar durante a geração, use o plano <b>Starter</b> (ou qualquer instância com ≥1 GB).
+        O plano gratuito também “dorme” após inatividade — a primeira chamada depois disso demora mais.
+      </div>
+    </div>
   </section>
 
   <footer>
-    Perchance Image API · backend Flask + Camoufox · frontend estático para GitHub Pages · MIT
+    <span>Perchance Image API · MIT · sem afiliação com o Perchance</span>
+    <span><a href="https://github.com/CerberusLD/perchance-image-api">GitHub</a> · <a href="api.html">API</a></span>
   </footer>
 </div>
-
-<script src="perchance-api.js"></script>
-<script>
-(function () {
-  var styleSel = document.getElementById('style');
-  var chipBox = document.getElementById('styles');
-  var status = document.getElementById('status');
-  var results = document.getElementById('results');
-  var guidance = document.getElementById('guidance');
-  var gval = document.getElementById('gval');
-  var baseInput = document.getElementById('base');
-  var dot = document.getElementById('dot');
-  var cfgStatus = document.getElementById('cfgStatus');
-  var styles = {};
-
-  var savedBase = PerchanceAPI.getBase();
-  baseInput.value = savedBase || (location.protocol === 'https:' ? '' : 'http://127.0.0.1:8000');
-  baseInput.placeholder = location.protocol === 'https:'
-    ? 'https://seu-backend.onrender.com'
-    : 'http://127.0.0.1:8000';
-
-  function setCfg(msg, cls) {
-    cfgStatus.textContent = msg;
-    cfgStatus.className = 'status' + (cls ? ' ' + cls : '');
-    dot.className = 'dot' + (cls === 'ok' ? ' ok' : cls === 'err' ? ' err' : '');
-  }
-
-  async function testBackend() {
-    setCfg('testando…');
-    try {
-      var h = await PerchanceAPI.health();
-      setCfg('online · ready=' + h.ready, 'ok');
-      loadStyles();
-    } catch (e) {
-      var msg = e.message || String(e);
-      if (/Failed to fetch|NetworkError/i.test(msg) && location.protocol === 'https:' &&
-          /^http:\/\//i.test(PerchanceAPI.getBase())) {
-        msg = 'mixed content: esta página é HTTPS e o backend é http://, o navegador bloqueia. ' +
-              'Publique o backend com HTTPS (Render/Railway/Fly) e use essa URL.';
-      }
-      setCfg('offline: ' + msg, 'err');
-    }
-  }
-
-  document.getElementById('save').addEventListener('click', function () {
-    PerchanceAPI.setBase(baseInput.value);
-    testBackend();
-  });
-
-  async function loadStyles() {
-    try {
-      var list = await PerchanceAPI.styles();
-      styles = {};
-      list.forEach(function (name) { styles[name] = { prompt: '[input.description]' }; });
-      styleSel.innerHTML = '<option value="">— sem estilo —</option>';
-      chipBox.innerHTML = '';
-      list.sort().forEach(function (name) {
-        var o = document.createElement('option');
-        o.value = name; o.textContent = name; styleSel.appendChild(o);
-        var c = document.createElement('span');
-        c.className = 'chip'; c.textContent = name;
-        c.addEventListener('click', function () { styleSel.value = name; });
-        chipBox.appendChild(c);
-      });
-    } catch (e) { /* backend offline */ }
-  }
-
-  guidance.addEventListener('input', function () { gval.textContent = guidance.value; });
-
-  // tabs
-  document.querySelectorAll('.tab').forEach(function (t) {
-    t.addEventListener('click', function () {
-      document.querySelectorAll('.tab').forEach(function (x) { x.classList.remove('active'); });
-      t.classList.add('active');
-      ['curl','js','endpoints','deploy'].forEach(function (k) {
-        document.getElementById('pane-' + k).hidden = (k !== t.dataset.tab);
-      });
-    });
-  });
-
-  function setStatus(msg, cls) {
-    status.textContent = msg;
-    status.className = 'status' + (cls ? ' ' + cls : '');
-  }
-
-  function clearResults(n) {
-    results.innerHTML = '';
-    for (var i = 0; i < n; i++) {
-      var d = document.createElement('div');
-      d.className = 'ph'; d.textContent = 'gerando…';
-      results.appendChild(d);
-    }
-  }
-
-  document.getElementById('go').addEventListener('click', async function () {
-    var prompt = document.getElementById('prompt').value.trim();
-    if (!prompt) { setStatus('Informe um prompt.', 'err'); return; }
-    if (!PerchanceAPI.getBase()) { setStatus('Configure a URL da API acima.', 'err'); return; }
-
-    var opts = {
-      style: styleSel.value || null,
-      resolution: document.getElementById('resolution').value,
-      guidanceScale: Number(guidance.value)
-    };
-    var neg = document.getElementById('negative').value.trim();
-    if (neg) opts.negativePrompt = neg;
-    var seed = document.getElementById('seed').value;
-    if (seed) opts.seed = Number(seed);
-    var n = parseInt(document.getElementById('count').value, 10) || 1;
-
-    var btn = this;
-    btn.disabled = true;
-    clearResults(n);
-    setStatus('Gerando ' + n + ' imagem(ns)… a primeira pode levar 30–90 s');
-
-    try {
-      var res = await PerchanceAPI.generateBatch(prompt, opts, n);
-      results.innerHTML = '';
-      res.forEach(function (r) {
-        var img = document.createElement('img');
-        img.src = r.dataUrl;
-        img.alt = prompt;
-        results.appendChild(img);
-      });
-      setStatus('OK — ' + res.length + ' imagem(ns).', 'ok');
-    } catch (e) {
-      results.innerHTML = '<div class="ph">erro</div>';
-      setStatus('Erro: ' + (e && e.message ? e.message : e), 'err');
-    } finally {
-      btn.disabled = false;
-    }
-  });
-
-  // auto-test on load
-  if (PerchanceAPI.getBase()) testBackend();
-})();
-</script>
 </body>
 </html>

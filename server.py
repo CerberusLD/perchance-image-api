@@ -46,6 +46,33 @@ def get_client() -> PerchanceClient:
     return _client
 
 
+@app.get("/")
+def index():
+    return jsonify({
+        "name": "Perchance Image API",
+        "version": "1.0.0",
+        "endpoints": {
+            "GET /health": "service status",
+            "GET /warmup": "start the browser (first call after deploy)",
+            "GET /styles": "list styles",
+            "GET /generate?prompt=...": "JPEG image",
+            "POST /generate": "JSON or JPEG",
+        },
+        "docs": "https://cerberusld.github.io/perchance-image-api/",
+    })
+
+
+@app.route("/warmup", methods=["GET", "POST"])
+def warmup():
+    """Start Camoufox and complete the Perchance warmup. Call once after deploy."""
+    with _lock:
+        try:
+            get_client()
+        except Exception as e:
+            return jsonify({"ok": False, "error": str(e)}), 500
+    return jsonify({"ok": True, "ready": True})
+
+
 @app.get("/health")
 def health():
     return jsonify({"status": "ok", "ready": _client is not None})

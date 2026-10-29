@@ -8,7 +8,7 @@ API completa e funcional para gerar imagens com `perchance.org/ai-text-to-image-
 |---|---|
 | `perchance-api.md` | Documentação completa da API (oficial v1, interna, texto, embed, estilos, erros, solução Camoufox) |
 | `perchance_client.py` | Cliente Python pronto para usar (`PerchanceClient`) |
-| `server.py` | API HTTP (Flask) com `/health`, `/styles`, `/generate` |
+| `server.py` | API HTTP (Flask) com `/health`, `/warmup`, `/styles`, `/generate` |
 | `test_client.py` | Teste que gera 3 imagens de exemplo |
 | `perchance-styles.json` | 76 estilos com suas keywords |
 | `example-official-api.html` | Exemplo da Official Image API v1 no navegador |
@@ -62,25 +62,29 @@ curl http://127.0.0.1:8000/styles
 curl http://127.0.0.1:8000/health
 ```
 
-## GitHub Pages (frontend estático) + backend
-
-O repositório tem duas partes:
+## Arquitetura: site de introdução (Pages) + API (Render)
 
 | Parte | Onde roda | O que faz |
 |---|---|---|
-| `docs/` | GitHub Pages (estático) | Painel/playground, SDK `perchance-api.js`, referência da API |
-| `server.py` + `perchance_client.py` | Servidor (local/VPS/Render/Railway/Fly) | Geração real via Flask + Camoufox |
+| `docs/` | GitHub Pages (estático) | Site de introdução + referência da API |
+| `server.py` + `perchance_client.py` | Render (Docker) | API real via Flask + Camoufox |
 
-O deploy do frontend é automático: o GitHub Pages está configurado em **Settings → Pages → Deploy from a branch → main /docs**. Cada push em `main` republica o site.
+- Site: https://cerberusld.github.io/perchance-image-api/
+- Referência: https://cerberusld.github.io/perchance-image-api/api.html
+- API: `https://SEU-SERVICO.onrender.com`
 
-```
-https://cerberusld.github.io/perchance-image-api/
-https://cerberusld.github.io/perchance-image-api/api.html
-```
+O Pages publica a pasta `docs/` a cada push em `main` (Settings → Pages → Deploy from a branch → main /docs).
 
-No painel, cole a URL pública do backend no campo **API base** (ex.: `https://seu-servico.onrender.com`). O backend já responde com CORS liberado.
+### Deploy da API no Render
 
-### Por que não dá para gerar direto no Pages
+1. Render → **New → Blueprint** → selecione este repositório (o `render.yaml` já está pronto).
+2. Aguarde o build do Docker (instala dependências e roda `python -m camoufox fetch`).
+3. Abra `https://SEU-SERVICO.onrender.com/warmup` uma vez para aquecer o navegador.
+4. Confirme `GET /health` → `{"status":"ok","ready":true}`.
+
+> **Plano free do Render:** 512 MB de RAM. O Camoufox é um Firefox completo e pode ficar apertado; se o serviço reiniciar durante a geração, use o plano **Starter** (≥1 GB). O free também dorme após inatividade — a primeira chamada depois disso demora mais.
+
+### Por que a API não roda no Pages
 
 O GitHub Pages é **hospedagem estática**: não executa Python, não abre navegador e não resolve Cloudflare/Turnstile. Além disso:
 
@@ -88,25 +92,14 @@ O GitHub Pages é **hospedagem estática**: não executa Python, não abre naveg
 - O endpoint do ad code não tem CORS → o navegador não consegue chamá-lo de `github.io`.
 - O embed `image-generation.perchance.org` só permite `frame-ancestors` de `*.perchance.org`.
 
-Por isso a geração roda no `server.py` (Camoufox), e o Pages é o frontend. Para ter um endpoint HTTP real, publique o backend:
-
-```bash
-# local
-.venv/bin/python server.py
-
-# Docker (VPS / Render / Railway / Fly)
-docker build -t perchance-api .
-docker run -p 8000:8000 perchance-api
-```
-
-O repo inclui `Dockerfile`, `render.yaml` e `Procfile` prontos.
+Por isso a geração roda no Render (Camoufox) e o Pages é só o site de introdução/documentação.
 
 ### SDK no navegador
 
 ```html
 <script src="https://cerberusld.github.io/perchance-image-api/perchance-api.js"></script>
 <script>
-  PerchanceAPI.setBase("https://SEU-BACKEND");
+  PerchanceAPI.setBase("https://SEU-SERVICO.onrender.com");
   const r = await PerchanceAPI.generate("a cute cat", {
     style: "Cinematic",
     resolution: "768x768",
@@ -117,8 +110,6 @@ O repo inclui `Dockerfile`, `render.yaml` e `Procfile` prontos.
   document.querySelector("img").src = r.dataUrl;
 </script>
 ```
-
-> Em repositório **privado**, o GitHub Pages exige plano pago (Pro/Team/Enterprise). Se o Pages não ativar, torne o repositório público ou use um plano compatível.
 
 
 
