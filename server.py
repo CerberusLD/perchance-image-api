@@ -32,9 +32,20 @@ from perchance_client import PerchanceClient, apply_style, load_styles
 app = Flask(__name__)
 _lock = threading.Lock()
 _client = None
+_poll_lock = threading.Lock()
+_last_poll = 0.0
 
 _PROVIDER = os.environ.get("IMAGE_PROVIDER", "auto").strip().lower()
 _FALLBACK = os.environ.get("IMAGE_FALLBACK", "pollinations").strip().lower()
+
+# Cloudflare Workers AI (free tier, no card): reliable fallback for datacenter
+# hosts. Create a token at dash.cloudflare.com -> Workers AI -> Use REST API.
+_CF_ACCOUNT = os.environ.get("CF_ACCOUNT_ID", "").strip()
+_CF_TOKEN = os.environ.get("CF_API_TOKEN", "").strip()
+_CF_MODEL = os.environ.get(
+    "CF_MODEL", "@cf/stabilityai/stable-diffusion-xl-base-1.0"
+).strip()
+_POLL_TOKEN = os.environ.get("POLLINATIONS_TOKEN", "").strip()
 
 
 @app.after_request
@@ -67,7 +78,8 @@ def index():
         "version": "1.1.0",
         "provider": _PROVIDER,
         "fallback": _FALLBACK,
-        "providers": ["perchance", "pollinations"],
+        "providers": ["perchance", "cloudflare", "pollinations"],
+        "cloudflare_ready": _cf_ready(),
         "endpoints": {
             "GET /health": "service status",
             "GET /warmup": "create the HTTP session (first call after deploy)",
@@ -130,28 +142,110 @@ def _pollinations(prompt: str, negative: str, resolution: str,
         "model": "flux",
         "nologo": "true",
     }
+    global _last_poll
     last = None
-    for _ in range(3):
-        try:
-            r = creq.get(url, params=params, impersonate="chrome", timeout=150)
-            ctype = (r.headers.get("content-type") or "image/jpeg").split(";")[0].strip()
-            if r.status_code == 200 and ctype.startswith("image/") and len(r.content) > 1000:
-                return {
-                    "image_bytes": r.content,
-                    "mime": ctype,
-                    "seed": int(seed),
-                    "width": w,
-                    "height": h,
-                    "prompt": full_prompt,
-                    "negative_prompt": full_neg,
-                    "maybe_nsfw": False,
-                    "provider": "pollinations",
-                }
-            last = f"HTTP {r.status_code} {ctype} {r.text[:100]}"
-        except Exception as e:
-            last = str(e)
-        time.sleep(1.5)
+    headers = {"Authorization": f"Bearer {_POLL_TOKEN}"} if _POLL_TOKEN else {}
+    with _poll_lock:
+        if not _POLL_TOKEN and _last_poll:
+            wait = 45.0 - (time.time() - _last_poll)
+            if wait > 0:
+                time.sleep(min(wait, 45.0))
+        for _ in range(2):
+            try:
+                r = creq.get(url, params=params, headers=headers,
+                             impersonate="chrome", timeout=150)
+                ctype = (r.headers.get("content-type") or "image/jpeg").split(";")[0].strip()
+                if r.status_code == 200 and ctype.startswith("image/") and len(r.content) > 1000:
+                    _last_poll = time.time()
+                    return {
+                        "image_bytes": r.content,
+                        "mime": ctype,
+                        "seed": int(seed),
+                        "width": w,
+                        "height": h,
+                        "prompt": full_prompt,
+                        "negative_prompt": full_neg,
+                        "maybe_nsfw": False,
+                        "provider": "pollinations",
+                    }
+                last = f"HTTP {r.status_code} {ctype} {r.text[:100]}"
+                if r.status_code == 402:
+                    # free tier: one image per IP every 45 s
+                    break
+            except Exception as e:
+                last = str(e)
+            time.sleep(1.5)
+        _last_poll = time.time()
     raise RuntimeError(f"pollinations failed: {last}")
+
+
+def _cf_ready() -> bool:
+    return bool(_CF_ACCOUNT and _CF_TOKEN)
+
+
+def _cloudflare(prompt: str, negative: str, resolution: str,
+                guidance: float, seed: int, style) -> dict:
+    """Cloudflare Workers AI (free tier). Supports negative prompt, guidance,
+    dimensions and seed with SDXL; flux-1-schnell ignores them."""
+    if not _cf_ready():
+        raise RuntimeError("cloudflare not configured (CF_ACCOUNT_ID / CF_API_TOKEN)")
+    full_prompt, full_neg = apply_style(prompt, style, negative)
+    w, h = _dims(resolution)
+    w = max(256, min(2048, w))
+    h = max(256, min(2048, h))
+    if seed is None or seed < 0:
+        seed = random.randint(1, 2_147_483_647)
+
+    if "flux" in _CF_MODEL.lower():
+        body = {"prompt": full_prompt, "steps": 4, "seed": int(seed)}
+    else:
+        body = {
+            "prompt": full_prompt,
+            "negative_prompt": full_neg,
+            "width": w,
+            "height": h,
+            "num_steps": 20,
+            "guidance": float(guidance),
+            "seed": int(seed),
+        }
+
+    url = f"https://api.cloudflare.com/client/v4/accounts/{_CF_ACCOUNT}/ai/run/{_CF_MODEL}"
+    r = creq.post(
+        url,
+        headers={"Authorization": f"Bearer {_CF_TOKEN}"},
+        json=body,
+        impersonate="chrome",
+        timeout=180,
+    )
+    ctype = (r.headers.get("content-type") or "").split(";")[0].strip()
+    if r.status_code == 200 and ctype.startswith("image/"):
+        img = r.content
+    else:
+        try:
+            j = r.json()
+        except Exception:
+            raise RuntimeError(f"cloudflare HTTP {r.status_code}: {r.text[:200]}")
+        if not j.get("success"):
+            raise RuntimeError(f"cloudflare error: {j.get('errors')}")
+        b64 = (j.get("result") or {}).get("image")
+        if not b64:
+            raise RuntimeError(f"cloudflare: no image in response ({str(j)[:200]})")
+        img = base64.b64decode(b64)
+        ctype = "image/jpeg"
+
+    if len(img) < 1000:
+        raise RuntimeError("cloudflare returned an empty image")
+    return {
+        "image_bytes": img,
+        "mime": ctype,
+        "seed": int(seed),
+        "width": w,
+        "height": h,
+        "prompt": full_prompt,
+        "negative_prompt": full_neg,
+        "maybe_nsfw": False,
+        "provider": "cloudflare",
+    }
 
 
 def _perchance(prompt: str, negative: str, resolution: str,
@@ -193,22 +287,38 @@ def generate():
     style = data.get("style") or None
 
     provider = (data.get("provider") or _PROVIDER).strip().lower()
-    if provider not in ("auto", "perchance", "pollinations"):
+    if provider not in ("auto", "perchance", "cloudflare", "pollinations"):
         provider = _PROVIDER
+
+    def _fallback():
+        errs = []
+        if _cf_ready():
+            try:
+                return _cloudflare(prompt, negative, resolution, guidance, seed, style)
+            except Exception as e:
+                errs.append(f"cloudflare: {e}")
+        if _FALLBACK == "pollinations":
+            try:
+                return _pollinations(prompt, negative, resolution, seed, style)
+            except Exception as e:
+                errs.append(f"pollinations: {e}")
+        raise RuntimeError("fallback failed: " + ("; ".join(errs) or "none configured"))
 
     try:
         if provider == "pollinations":
             result = _pollinations(prompt, negative, resolution, seed, style)
+        elif provider == "cloudflare":
+            result = _cloudflare(prompt, negative, resolution, guidance, seed, style)
         else:
             try:
                 result = _perchance(prompt, negative, resolution, guidance, seed, style)
             except Exception as e:
-                if provider == "perchance" or _FALLBACK == "none":
+                if provider == "perchance":
                     raise
                 # Perchance rejected this IP (token_required) or failed:
-                # keep the API useful by using the keyless fallback.
-                app.logger.warning("perchance failed (%s); using pollinations", e)
-                result = _pollinations(prompt, negative, resolution, seed, style)
+                # keep the API useful by using a fallback provider.
+                app.logger.warning("perchance failed (%s); using fallback", e)
+                result = _fallback()
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

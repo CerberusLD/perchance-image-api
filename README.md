@@ -149,7 +149,22 @@ O playground da landing usa essa mesma base. Para apontar para outro host (Verce
 window.PERCHANCE_API_BASE = "https://SEU-HOST";
 ```
 
-> **Importante:** em IP de datacenter o Perchance pode responder `token_required`. Por padrão a API então usa o **Pollinations** automaticamente e devolve a imagem mesmo assim (`X-Image-Provider: pollinations`). Para usar o Perchance nesse host, configure `PERCHANCE_PROXY` (proxy HTTP residencial/sticky); o fluxo continua 100% sem navegador.
+> **Importante:** em IP de datacenter o Perchance pode responder `token_required`. Por padrão a API então usa o **Cloudflare Workers AI** (se configurado) e, em último caso, o **Pollinations** — devolvendo a imagem mesmo assim (`X-Image-Provider`). Para usar o Perchance nesse host, configure `PERCHANCE_PROXY` (proxy HTTP residencial/sticky); o fluxo continua 100% sem navegador.
+
+### Fallback grátis e confiável: Cloudflare Workers AI
+
+O plano gratuito do Workers AI não pede cartão e cobre milhares de imagens por dia. É a forma recomendada de fazer `/generate` funcionar sempre no Render (IP de datacenter), sem proxy e sem navegador.
+
+1. Crie uma conta gratuita em https://dash.cloudflare.com
+2. **Workers AI → Use REST API → Create Workers AI API Token** e copie o token.
+3. Copie o **Account ID** mostrado na mesma página.
+4. No Render → **Environment**, adicione:
+   - `CF_ACCOUNT_ID` = seu Account ID
+   - `CF_API_TOKEN` = o token copiado
+   - (opcional) `CF_MODEL` = `@cf/stabilityai/stable-diffusion-xl-base-1.0` (padrão) ou `@cf/black-forest-labs/flux-1-schnell`
+5. Reinicie o serviço. `GET /` deve mostrar `"cloudflare_ready": true`.
+
+Cadeia em `auto`: **Perchance → Cloudflare → Pollinations**. O header `X-Image-Provider` e o campo `provider` no JSON dizem qual respondeu. Sem chave, o Pollinations gratuito limita a **1 imagem a cada 45 s por IP**; com `POLLINATIONS_TOKEN` esse limite desaparece.
 
 ## Parâmetros de `/generate`
 
@@ -161,7 +176,7 @@ window.PERCHANCE_API_BASE = "https://SEU-HOST";
 | `guidance_scale` | float | `7.0` | 1–30, aderência ao prompt |
 | `seed` | int | `-1` | -1 = aleatório; mesmo seed ≈ mesma imagem |
 | `style` | string | — | Qualquer um dos 76 estilos |
-| `provider` | string | `auto` | `auto` \| `perchance` \| `pollinations` |
+| `provider` | string | `auto` | `auto` \| `perchance` \| `cloudflare` \| `pollinations` |
 | `response_format` | string | — | `json` para base64 |
 
 ## Como funciona (resumo)

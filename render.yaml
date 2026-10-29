@@ -21,3 +21,14 @@ services:
         value: auto
       - key: IMAGE_FALLBACK
         value: pollinations
+      # Free and reliable fallback (Workers AI free tier, no card).
+      # Dash -> Workers AI -> Use REST API -> Create token.
+      - key: CF_ACCOUNT_ID
+        sync: false
+      - key: CF_API_TOKEN
+        sync: false
+      - key: CF_MODEL
+        value: "@cf/stabilityai/stable-diffusion-xl-base-1.0"
+      # Optional: Pollinations key removes the 1-image/45s per-IP limit.
+      - key: POLLINATIONS_TOKEN
+        sync: false
