@@ -13,8 +13,8 @@ tests = [
          out="test_city.jpg"),
 ]
 
-with PerchanceClient(headless=True, humanize=True) as pc:
-    print("warmup OK, userKey:", (pc._user_key or "")[:16], "...")
+with PerchanceClient() as pc:
+    print("client ready, userKey:", (pc._key or "")[:16], "...")
     for t in tests:
         out = t.pop("out")
         print("generating:", t["prompt"][:50], "|", t.get("style"))

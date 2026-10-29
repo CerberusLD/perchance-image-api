@@ -41,7 +41,7 @@ def _options():
 def get_client() -> PerchanceClient:
     global _client
     if _client is None:
-        _client = PerchanceClient(headless=True, humanize=True)
+        _client = PerchanceClient()
         _client.start()
     return _client
 
@@ -125,4 +125,4 @@ def generate():
 if __name__ == "__main__":
     import os
     port = int(os.environ.get("PORT", "8000"))
-    app.run(host="0.0.0.0", port=port, threaded=False)
+    app.run(host="0.0.0.0", port=port, threaded=True)

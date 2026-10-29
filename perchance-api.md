@@ -995,3 +995,73 @@ Endpoints: `GET /health`, `GET /styles`, `GET|POST /generate`.
 - Do not run in parallel on the same client instance (the generator has a global queue lock). Use one client per worker or serialize calls.
 - `style` is applied by appending the style's keyword expansion to the prompt (exactly what the page does). See `perchance-styles.json`.
 - The page's extra controls (🧠 prompt enhancer modal, ➕ modifiers, filter, "how many") are UI-only; the API itself takes `prompt`/`negativePrompt` and one image per call. Batch = N calls.
+
+---
+
+## 17. No-browser flow — the ad code doubles as `accessCode` (VERIFIED 2026-10-29)
+
+This supersedes §16 for production use. **No browser, no Turnstile, no Camoufox.**
+
+### 17.1 The discovery
+
+`GET /api/verifyUser` accepts the **ad access code** in the `accessCode` parameter:
+
+```
+GET https://image-generation.perchance.org/api/verifyUser
+    ?browserId=<32hex>&accessCode=<adcode>&thread=0&__cacheBust=<random>
+```
+
+Response:
+
+```json
+{"status":"success","userKey":"<64hex>"}
+```
+
+Subsequent calls with the same `browserId` return `{"status":"already_verified","userKey":"..."}`.
+So the Turnstile token is not required when a valid ad code is supplied.
+
+### 17.2 Full flow (pure HTTP)
+
+```
+1. browserId = secrets.token_hex(16)                        # 32 hex
+2. ad = GET https://perchance.org/api/getAccessCodeForAdPoweredStuff
+        headers: Referer perchance.org/stable-diffusion-ai, Origin perchance.org
+3. key = GET https://image-generation.perchance.org/api/verifyUser
+        ?browserId=<bid>&accessCode=<ad>&thread=0
+        headers: Referer image-generation.perchance.org/embed, Origin image-generation.perchance.org
+4. POST https://image-generation.perchance.org/api/generate
+        ?userKey=<key>&requestId=0.<rand>&adAccessCode=<ad>&v=<V_HASH>&__cacheBust=<rand>
+        body: {prompt, negativePrompt, seed, resolution, guidanceScale,
+               channel:"ai-text-to-image-generator", subChannel:"public",
+               userKey, adAccessCode, requestId}
+5. GET imageDownloadUrl (proxy token) or /api/downloadTemporaryImage?imageId=...
+```
+
+### 17.3 Why it works without a browser
+
+- **Cloudflare TLS fingerprint:** handled by `curl_cffi` with `impersonate="chrome"`.
+- **Turnstile:** bypassed because `verifyUser` accepts the ad code as `accessCode`.
+- **CORS:** irrelevant — server-side HTTP, not a browser fetch.
+
+### 17.4 Verified results
+
+| Test | Result |
+|---|---|
+| ad code (curl_cffi) | ✅ 64 hex |
+| verifyUser with `accessCode=<ad>` | ✅ `status: success`, userKey 64 hex |
+| verifyUser tokenless after that | ✅ `already_verified` |
+| generate (512x768, seed 777, guidance 9, negative) | ✅ `status: success` |
+| download proxy | ✅ 77,515-byte JPEG |
+| 3-image batch via `test_client.py` | ✅ 86 KB / 116 KB / 140 KB, correct dimensions |
+| `/generate` on Flask (local) | ✅ 47 KB JPEG in **7.4 s** |
+
+### 17.5 Caveats
+
+- The ad code and `userKey` are IP-bound. Run the whole flow from the same IP (the server does).
+- The `v` hash can change; if you get `client_update_required`, re-extract it from `https://image-generation.perchance.org/embed`.
+- On a flagged/datacenter IP, the ad code endpoint may return a Cloudflare challenge. Set `PERCHANCE_PROXY` (HTTP proxy) — the client passes it to `curl_cffi`, and the whole flow uses it so the IP stays consistent.
+- Serialize generations per client (the server uses a lock); `waiting_for_prev_request_to_finish` is retried automatically.
+
+### 17.6 Result
+
+`perchance_client.py` now uses this flow with `curl_cffi` only. No Firefox, no Camoufox, no 150 MB download, low memory — suitable for the Render free plan.

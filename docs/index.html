@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Perchance Image API — API de geração de imagens</title>
-<meta name="description" content="API open-source para gerar imagens com Perchance. Flask + Camoufox no Render, frontend estático no GitHub Pages.">
+<meta name="description" content="API open-source para gerar imagens com Perchance. Flask + curl_cffi (sem navegador) no Render, frontend estático no GitHub Pages.">
 <meta property="og:title" content="Perchance Image API">
-<meta property="og:description" content="API open-source para gerar imagens com Perchance. Flask + Camoufox no Render.">
+<meta property="og:description" content="API open-source para gerar imagens com Perchance. Flask + curl_cffi (sem navegador) no Render.">
 <style>
   :root {
     --bg:#070b12; --card:#101827; --card2:#0c1320; --fg:#e8eef7; --muted:#93a1b5;
@@ -107,7 +107,7 @@
     <div class="pill">● open source · MIT · self-hosted</div>
     <h1>Gere imagens com Perchance<br><span class="grad">através de uma API simples</span></h1>
     <p class="lead">
-      Uma API REST open-source que envolve o gerador de imagens do Perchance com Flask + Camoufox.
+      Uma API REST open-source que envolve o gerador de imagens do Perchance com Flask + curl_cffi (HTTP puro, sem navegador).
       76 estilos, resoluções, seed, negative prompt e controle de guidance — sem chave, sem cadastro.
     </p>
     <div class="cta">
@@ -129,7 +129,7 @@
       <div class="step">
         <div class="n">2</div>
         <h3>API (Render + Docker)</h3>
-        <p>Flask recebe seu prompt e usa Camoufox (Firefox anti-detect) para passar pelo Turnstile e gerar a imagem.</p>
+        <p>Flask obtém o ad code e o userKey por HTTP (curl_cffi, TLS de Chrome) e chama a API interna do Perchance. Sem navegador.</p>
       </div>
       <div class="step">
         <div class="n">3</div>
@@ -148,7 +148,7 @@
       <div class="feature"><div class="ico">🎲</div><h3>Seed</h3><p>Reproduza ou varie imagens com o mesmo prompt.</p></div>
       <div class="feature"><div class="ico">🚫</div><h3>Negative prompt</h3><p>Diga o que evitar: blurry, low quality, watermark...</p></div>
       <div class="feature"><div class="ico">🎚️</div><h3>Guidance 1–30</h3><p>Aderência ao prompt, de criativo a literal.</p></div>
-      <div class="feature"><div class="ico">🛡️</div><h3>Anti-bot</h3><p>Camoufox resolve o Cloudflare Turnstile de forma realista.</p></div>
+      <div class="feature"><div class="ico">🛡️</div><h3>Sem navegador</h3><p>HTTP puro com curl_cffi: o ad code vira accessCode no verifyUser, sem Turnstile.</p></div>
       <div class="feature"><div class="ico">🌐</div><h3>CORS liberado</h3><p>Chame direto do seu frontend, em qualquer domínio.</p></div>
       <div class="feature"><div class="ico">🐳</div><h3>Docker</h3><p>Dockerfile pronto para Render, Railway, Fly ou VPS.</p></div>
       <div class="feature"><div class="ico">📦</div><h3>SDK JS</h3><p><code>perchance-api.js</code> com generate e generateBatch.</p></div>
@@ -173,7 +173,7 @@ curl -X POST https://SEU-SERVICO.onrender.com/generate \
     "seed": 42,
     "response_format": "json"
   }'</pre>
-        <div class="hint">A primeira chamada após o deploy aquece o navegador (30–90 s).</div>
+        <div class="hint">Geração em ~5–15 s. Sem navegador e sem aquecimento longo.</div>
       </div>
       <div>
         <pre>&lt;script src="perchance-api.js"&gt;&lt;/script&gt;
@@ -200,7 +200,7 @@ curl -X POST https://SEU-SERVICO.onrender.com/generate \
     <table>
       <tr><th>Método</th><th>Rota</th><th>Descrição</th></tr>
       <tr><td><span class="tag">GET</span></td><td><code>/health</code></td><td>Status do serviço e se o navegador está pronto</td></tr>
-      <tr><td><span class="tag">GET</span></td><td><code>/warmup</code></td><td>Inicia o Camoufox (chame uma vez após o deploy)</td></tr>
+      <tr><td><span class="tag">GET</span></td><td><code>/warmup</code></td><td>Cria a sessão HTTP e valida o acesso (chame uma vez após o deploy)</td></tr>
       <tr><td><span class="tag">GET</span></td><td><code>/styles</code></td><td>Lista os 76 estilos</td></tr>
       <tr><td><span class="tag">GET</span></td><td><code>/generate?prompt=...</code></td><td>Retorna a imagem JPEG</td></tr>
       <tr><td><span class="tag">POST</span></td><td><code>/generate</code></td><td>JSON (<code>response_format=json</code>) ou JPEG</td></tr>
@@ -214,14 +214,13 @@ curl -X POST https://SEU-SERVICO.onrender.com/generate \
       <ol>
         <li><b>Fork</b> ou use este repositório no Render.</li>
         <li><b>New → Blueprint</b> e selecione o repositório (o <code>render.yaml</code> já está pronto).</li>
-        <li>Aguarde o build (instala dependências e baixa o Firefox do Camoufox).</li>
+        <li>Aguarde o build do Docker (rápido: sem download de navegador).</li>
         <li>Abra <code>https://SEU-SERVICO.onrender.com/warmup</code> uma vez.</li>
         <li>Teste <code>/health</code> → <code>{"status":"ok","ready":true}</code>.</li>
       </ol>
       <div class="note">
-        O plano gratuito do Render tem 512 MB de RAM. O Camoufox é um Firefox completo e pode ficar apertado;
-        se o serviço reiniciar durante a geração, use o plano <b>Starter</b> (ou qualquer instância com ≥1 GB).
-        O plano gratuito também “dorme” após inatividade — a primeira chamada depois disso demora mais.
+        Sem navegador, o consumo é baixo: o plano gratuito do Render (512 MB) é suficiente.
+        O free “dorme” após inatividade — a primeira chamada depois disso só demora alguns segundos para acordar.
       </div>
     </div>
   </section>

@@ -1,12 +1,12 @@
 # Perchance Image API — pronto para o app
 
-API completa e funcional para gerar imagens com `perchance.org/ai-text-to-image-generator`, com o problema de detecção de bots (Cloudflare Turnstile) **resolvido** usando Camoufox.
+API completa e funcional para gerar imagens com `perchance.org/ai-text-to-image-generator`, com o problema de detecção de bots (Cloudflare Turnstile) **resolvido sem navegador**: HTTP puro com `curl_cffi`, usando o ad code como `accessCode` no `verifyUser`.
 
 ## O que há aqui
 
 | Arquivo | Descrição |
 |---|---|
-| `perchance-api.md` | Documentação completa da API (oficial v1, interna, texto, embed, estilos, erros, solução Camoufox) |
+| `perchance-api.md` | Documentação completa da API (oficial v1, interna, texto, embed, estilos, erros, fluxo sem navegador) |
 | `perchance_client.py` | Cliente Python pronto para usar (`PerchanceClient`) |
 | `server.py` | API HTTP (Flask) com `/health`, `/warmup`, `/styles`, `/generate` |
 | `test_client.py` | Teste que gera 3 imagens de exemplo |
@@ -19,7 +19,6 @@ API completa e funcional para gerar imagens com `perchance.org/ai-text-to-image-
 ```bash
 uv venv .venv --python 3.12
 uv pip install --python .venv/bin/python -r requirements.txt
-.venv/bin/python -m camoufox fetch      # baixa o Firefox anti-detect (~150 MB)
 ```
 
 ## Uso rápido (Python)
@@ -27,7 +26,7 @@ uv pip install --python .venv/bin/python -r requirements.txt
 ```python
 from perchance_client import PerchanceClient
 
-with PerchanceClient(headless=True) as pc:
+with PerchanceClient() as pc:
     r = pc.generate(
         "a cute orange cat sitting on a windowsill",
         style="Cinematic",
@@ -67,7 +66,7 @@ curl http://127.0.0.1:8000/health
 | Parte | Onde roda | O que faz |
 |---|---|---|
 | `docs/` | GitHub Pages (estático) | Site de introdução + referência da API |
-| `server.py` + `perchance_client.py` | Render (Docker) | API real via Flask + Camoufox |
+| `server.py` + `perchance_client.py` | Render (Docker) | API real via Flask + curl_cffi (sem navegador) |
 
 - Site: https://cerberusld.github.io/perchance-image-api/
 - Referência: https://cerberusld.github.io/perchance-image-api/api.html
@@ -78,11 +77,11 @@ O Pages publica a pasta `docs/` a cada push em `main` (Settings → Pages → De
 ### Deploy da API no Render
 
 1. Render → **New → Blueprint** → selecione este repositório (o `render.yaml` já está pronto).
-2. Aguarde o build do Docker (instala dependências e roda `python -m camoufox fetch`).
-3. Abra `https://SEU-SERVICO.onrender.com/warmup` uma vez para aquecer o navegador.
+2. Aguarde o build do Docker (rápido: sem download de navegador).
+3. Abra `https://SEU-SERVICO.onrender.com/warmup` uma vez (cria a sessão HTTP e valida o acesso).
 4. Confirme `GET /health` → `{"status":"ok","ready":true}`.
 
-> **Plano free do Render:** 512 MB de RAM. O Camoufox é um Firefox completo e pode ficar apertado; se o serviço reiniciar durante a geração, use o plano **Starter** (≥1 GB). O free também dorme após inatividade — a primeira chamada depois disso demora mais.
+> **Plano free do Render:** 512 MB são suficientes: sem navegador, o consumo é baixo e a geração leva ~5–15 s. O free dorme após inatividade — a primeira chamada depois disso demora alguns segundos para acordar.
 
 ### Por que a API não roda no Pages
 
@@ -92,7 +91,7 @@ O GitHub Pages é **hospedagem estática**: não executa Python, não abre naveg
 - O endpoint do ad code não tem CORS → o navegador não consegue chamá-lo de `github.io`.
 - O embed `image-generation.perchance.org` só permite `frame-ancestors` de `*.perchance.org`.
 
-Por isso a geração roda no Render (Camoufox) e o Pages é só o site de introdução/documentação.
+Por isso a geração roda no Render (curl_cffi, sem navegador) e o Pages é só o site de introdução/documentação.
 
 ### SDK no navegador
 
@@ -127,11 +126,10 @@ Por isso a geração roda no Render (Camoufox) e o Pages é só o site de introd
 
 ## Como funciona (resumo)
 
-1. O Camoufox abre a página e passa pelo Cloudflare Turnstile.
-2. Uma geração de aquecimento cria o `userKey` (64 hex) no `localStorage` do iframe embed.
-3. O cliente lê o `userKey` e o `adAccessCode` a partir do contexto do navegador.
-4. Faz `POST /api/generate` **dentro do iframe verificado** (com cookies/TLS do navegador) com controle total: prompt, negative, seed, resolução, guidance.
-5. Baixa a imagem via `downloadTemporaryImageViaProxy`.
+1. O cliente gera um `browserId` (32 hex) e busca o ad code em `perchance.org/api/getAccessCodeForAdPoweredStuff`.
+2. Chama `verifyUser?browserId=...&accessCode=<adcode>&thread=0` → `userKey` (64 hex). O ad code vale como `accessCode`, então **não há Turnstile nem navegador**.
+3. Faz `POST /api/generate?userKey=...&adAccessCode=...&v=...` por HTTP (curl_cffi impersona o TLS do Chrome) com prompt, negative, seed, resolução e guidance.
+4. Baixa a imagem via `downloadTemporaryImageViaProxy` (ou `downloadTemporaryImage?imageId=...`).
 
 ## Notas
 

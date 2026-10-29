@@ -1,5 +1,5 @@
 /*!
- * Perchance Image API — client SDK for the backend server (Flask + Camoufox).
+ * Perchance Image API — client SDK for the backend server (Flask + curl_cffi).
  *
  * GitHub Pages is static: it cannot run the browser automation itself.
  * This SDK talks to a server running `server.py` (local, VPS, Render, Railway, Fly...).

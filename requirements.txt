@@ -1,4 +1,3 @@
-camoufox>=0.4
-requests>=2.31
+curl_cffi>=0.7
 flask>=3.0
 gunicorn>=21.2
