@@ -15,3 +15,5 @@ Thumbs.db
 # Local outputs
 *.log
 out-*.txt
+test_*.jpg
+test-*.jpg
