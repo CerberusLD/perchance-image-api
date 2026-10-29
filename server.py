@@ -92,8 +92,12 @@ def diag():
         ad = c.ad_code(force=True)
         out["ad_len"] = len(ad)
         out["ad_prefix"] = ad[:8]
+        # warm the embed page to try to obtain cf_clearance
+        w = c.session.get(f"{API_BASE}/embed", headers=c._embed_headers(), timeout=30)
+        out["embed_status"] = w.status_code
+        out["cookies"] = list(c.session.cookies.keys())
         r = c.session.get(
-            "https://image-generation.perchance.org/api/verifyUser",
+            f"{API_BASE}/api/verifyUser",
             params={"browserId": c.browser_id, "accessCode": ad, "thread": 0},
             headers=c._embed_headers(), timeout=30,
         )
