@@ -1,5 +1,5 @@
 """
-HTTP API wrapper around PerchanceClient (Camoufox edition).
+HTTP API wrapper around PerchanceClient (curl_cffi, no browser).
 
 Endpoints:
   GET  /health
@@ -53,7 +53,7 @@ def index():
         "version": "1.0.0",
         "endpoints": {
             "GET /health": "service status",
-            "GET /warmup": "start the browser (first call after deploy)",
+            "GET /warmup": "create the HTTP session (first call after deploy)",
             "GET /styles": "list styles",
             "GET /generate?prompt=...": "JPEG image",
             "POST /generate": "JSON or JPEG",
@@ -64,7 +64,7 @@ def index():
 
 @app.route("/warmup", methods=["GET", "POST"])
 def warmup():
-    """Start Camoufox and complete the Perchance warmup. Call once after deploy."""
+    """Create the HTTP session and validate access. Call once after deploy."""
     with _lock:
         try:
             get_client()

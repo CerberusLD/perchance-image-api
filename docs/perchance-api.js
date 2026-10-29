@@ -13,13 +13,14 @@
   'use strict';
 
   var STORAGE_KEY = 'perchanceApiBase';
-  var base = '';
-  try { base = localStorage.getItem(STORAGE_KEY) || ''; } catch (e) {}
 
   function normalize(url) {
     if (!url) return '';
     return String(url).trim().replace(/\/+$/, '');
   }
+
+  var base = normalize(global.PERCHANCE_API_BASE || '');
+  try { base = normalize(localStorage.getItem(STORAGE_KEY) || '') || base; } catch (e) {}
 
   function setBase(url) {
     base = normalize(url);

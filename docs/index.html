@@ -6,11 +6,11 @@
 <title>Perchance Image API — API de geração de imagens</title>
 <meta name="description" content="API open-source para gerar imagens com Perchance. Flask + curl_cffi (sem navegador) no Render, frontend estático no GitHub Pages.">
 <meta property="og:title" content="Perchance Image API">
-<meta property="og:description" content="API open-source para gerar imagens com Perchance. Flask + curl_cffi (sem navegador) no Render.">
+<meta property="og:description" content="API open-source para gerar imagens com Perchance. Flask + curl_cffi (sem navegador).">
 <style>
   :root {
     --bg:#070b12; --card:#101827; --card2:#0c1320; --fg:#e8eef7; --muted:#93a1b5;
-    --accent:#5b8cff; --accent2:#8b5cf6; --border:#22304a; --ok:#3ddc97; --warn:#ffcc66;
+    --accent:#5b8cff; --accent2:#8b5cf6; --border:#22304a; --ok:#3ddc97; --warn:#ffcc66; --err:#ff6b6b;
   }
   * { box-sizing:border-box; }
   html, body { margin:0; padding:0; }
@@ -31,24 +31,25 @@
   .navlinks { display:flex; gap:20px; font-size:.88rem; color:var(--muted); }
   .navlinks a { color:var(--muted); }
   .navlinks a:hover { color:var(--fg); text-decoration:none; }
-  @media (max-width:640px){ .navlinks { display:none; } }
+  @media (max-width:700px){ .navlinks { display:none; } }
 
-  .hero { padding: 64px 0 40px; text-align:center; }
+  .hero { padding: 56px 0 36px; text-align:center; }
   .pill { display:inline-flex; gap:8px; align-items:center; font-size:.76rem; color:var(--ok);
           border:1px solid #1f4d3a; background:#0e241b; padding:6px 12px; border-radius:999px; margin-bottom:18px; }
   h1 { font-size: clamp(2rem, 5vw, 3.2rem); line-height:1.1; letter-spacing:-.03em; margin:0 0 18px; }
   h1 .grad { background:linear-gradient(135deg,var(--accent),var(--accent2));
              -webkit-background-clip:text; background-clip:text; color:transparent; }
-  .lead { color:var(--muted); font-size:1.08rem; max-width:640px; margin:0 auto 28px; }
+  .lead { color:var(--muted); font-size:1.06rem; max-width:660px; margin:0 auto 26px; }
   .cta { display:flex; gap:12px; justify-content:center; flex-wrap:wrap; }
-  .btn { display:inline-flex; align-items:center; gap:8px; padding:12px 20px; border-radius:12px;
-         font-weight:700; font-size:.92rem; border:1px solid var(--border); color:var(--fg); background:var(--card); }
+  .btn { display:inline-flex; align-items:center; gap:8px; padding:12px 18px; border-radius:12px;
+         font-weight:700; font-size:.92rem; border:1px solid var(--border); color:var(--fg); background:var(--card); cursor:pointer; }
   .btn.primary { background:linear-gradient(135deg,var(--accent),var(--accent2)); border:0; color:#fff; }
-  .btn:hover { text-decoration:none; filter:brightness(1.08); }
+  .btn:hover { filter:brightness(1.08); text-decoration:none; }
+  .btn:disabled { opacity:.55; cursor:wait; }
 
-  section { padding: 46px 0; }
+  section { padding: 42px 0; }
   h2 { font-size:1.5rem; letter-spacing:-.02em; margin:0 0 8px; }
-  .section-sub { color:var(--muted); margin:0 0 26px; font-size:.95rem; }
+  .section-sub { color:var(--muted); margin:0 0 22px; font-size:.95rem; }
 
   .steps { display:grid; grid-template-columns: repeat(3, 1fr); gap:16px; }
   @media (max-width:820px){ .steps { grid-template-columns:1fr; } }
@@ -86,6 +87,34 @@
   .note { border:1px solid #4d3f1f; background:#1d1a10; color:#ffe1a3; border-radius:12px;
           padding:12px 14px; font-size:.83rem; margin-top:18px; }
 
+  /* Playground */
+  .play { background:linear-gradient(180deg,var(--card),var(--card2)); border:1px solid var(--border);
+          border-radius:20px; padding:22px; }
+  .play-grid { display:grid; grid-template-columns: 1.05fr .95fr; gap:22px; }
+  @media (max-width:900px){ .play-grid { grid-template-columns:1fr; } }
+  label { display:block; font-size:.78rem; color:var(--muted); margin:0 0 6px; }
+  textarea, input, select {
+    width:100%; background:#0b1320; color:var(--fg); border:1px solid var(--border);
+    border-radius:11px; padding:11px 12px; font-size:.9rem; outline:none;
+  }
+  textarea:focus, input:focus, select:focus { border-color:var(--accent); }
+  textarea { resize:vertical; min-height:76px; }
+  .row2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .row3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; }
+  .field { margin-bottom:12px; }
+  .base-row { display:flex; gap:8px; margin-bottom:14px; }
+  .base-row input { flex:1; }
+  .results { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .results img { width:100%; border-radius:12px; border:1px solid var(--border); display:block; }
+  .results .ph { aspect-ratio:1; border:1px dashed var(--border); border-radius:12px; display:grid;
+                 place-items:center; color:var(--muted); font-size:.78rem; text-align:center; padding:8px; }
+  .status { font-size:.82rem; color:var(--muted); margin-top:10px; min-height:20px; }
+  .status.ok { color:var(--ok); } .status.err { color:var(--err); }
+  .styles { display:flex; flex-wrap:wrap; gap:6px; max-height:96px; overflow:auto; margin-top:6px; }
+  .chip { font-size:.72rem; padding:4px 8px; border-radius:999px; background:#0b1320;
+          border:1px solid var(--border); color:var(--muted); cursor:pointer; }
+  .chip:hover { color:#fff; border-color:var(--accent); }
+
   footer { border-top:1px solid var(--border); margin-top:30px; padding:26px 0 40px;
            color:var(--muted); font-size:.82rem; display:flex; justify-content:space-between; flex-wrap:wrap; gap:10px; }
 </style>
@@ -96,6 +125,7 @@
   <nav>
     <div class="brand"><div class="logo">🎨</div> Perchance Image API</div>
     <div class="navlinks">
+      <a href="#probar">Probar</a>
       <a href="api.html">API</a>
       <a href="#como-funciona">Como funciona</a>
       <a href="#deploy">Deploy</a>
@@ -111,11 +141,92 @@
       76 estilos, resoluções, seed, negative prompt e controle de guidance — sem chave, sem cadastro.
     </p>
     <div class="cta">
-      <a class="btn primary" href="https://render.com/deploy?repo=https://github.com/CerberusLD/perchance-image-api">▲ Deploy no Render</a>
-      <a class="btn" href="https://github.com/CerberusLD/perchance-image-api">★ Ver no GitHub</a>
+      <a class="btn primary" href="#probar">✨ Testar agora</a>
+      <a class="btn" href="https://github.com/CerberusLD/perchance-image-api">★ GitHub</a>
       <a class="btn" href="api.html">📖 Referência da API</a>
     </div>
   </header>
+
+  <!-- Playground integrado com a API publicada -->
+  <section id="probar">
+    <h2>Testar a API</h2>
+    <p class="section-sub">
+      Esta página chama a API publicada em
+      <code id="apiHost">perchance-image-api-vn4j.onrender.com</code>.
+      Você também pode apontar para outro servidor no campo abaixo.
+    </p>
+
+    <div class="play">
+      <div class="base-row">
+        <input id="base" placeholder="https://perchance-image-api-vn4j.onrender.com" aria-label="API base URL">
+        <button class="btn" id="saveBase" type="button">Aplicar</button>
+        <button class="btn" id="health" type="button">Testar conexão</button>
+      </div>
+
+      <div class="play-grid">
+        <div>
+          <div class="field">
+            <label for="prompt">Prompt</label>
+            <textarea id="prompt">a cute orange cat sitting on a windowsill, soft morning light</textarea>
+          </div>
+
+          <div class="field">
+            <label for="style">Estilo (76)</label>
+            <select id="style"><option value="">— sem estilo —</option></select>
+            <div class="styles" id="chips"></div>
+          </div>
+
+          <div class="row2">
+            <div class="field">
+              <label for="resolution">Resolução</label>
+              <select id="resolution">
+                <option>512x512</option>
+                <option selected>768x768</option>
+                <option>512x768</option>
+                <option>768x512</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="count">Quantidade</label>
+              <select id="count">
+                <option value="1" selected>1</option>
+                <option value="2">2</option>
+                <option value="4">4</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="row3">
+            <div class="field">
+              <label for="guidance">Guidance <span id="gval">7</span></label>
+              <input id="guidance" type="range" min="1" max="30" value="7" step="1">
+            </div>
+            <div class="field">
+              <label for="seed">Seed</label>
+              <input id="seed" type="number" placeholder="aleatório">
+            </div>
+            <div class="field">
+              <label for="negative">Negative</label>
+              <input id="negative" placeholder="blurry, low quality">
+            </div>
+          </div>
+
+          <button class="btn primary" id="go" type="button" style="width:100%">✨ Gerar imagem</button>
+          <div class="status" id="status">Pronto.</div>
+        </div>
+
+        <div>
+          <div class="results" id="results">
+            <div class="ph">as imagens geradas aparecem aqui</div>
+            <div class="ph">a API devolve JPEG em base64</div>
+          </div>
+          <div class="hint">
+            A primeira chamada pode acordar o serviço no Render (alguns segundos).
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
 
   <section id="como-funciona">
     <h2>Como funciona</h2>
@@ -124,7 +235,7 @@
       <div class="step">
         <div class="n">1</div>
         <h3>Esta página (GitHub Pages)</h3>
-        <p>Site estático de introdução e documentação. Não executa backend nem contorna Cloudflare.</p>
+        <p>Site estático + playground. Chama a API por HTTPS, sem backend próprio.</p>
       </div>
       <div class="step">
         <div class="n">2</div>
@@ -134,7 +245,7 @@
       <div class="step">
         <div class="n">3</div>
         <h3>Perchance</h3>
-        <p>O navegador verificado chama a API interna do Perchance e devolve o JPEG para o seu app.</p>
+        <p>O servidor gera a imagem e devolve o JPEG em base64 para esta página.</p>
       </div>
     </div>
   </section>
@@ -156,15 +267,15 @@
   </section>
 
   <section>
-    <h2>Comece em segundos</h2>
-    <p class="section-sub">Depois de publicar a API no Render, troque <code>SEU-SERVICO</code> pela sua URL.</p>
+    <h2>Use no seu código</h2>
+    <p class="section-sub">A mesma API que o playground usa.</p>
     <div class="split">
       <div>
         <pre># imagem direta (JPEG)
-curl "https://SEU-SERVICO.onrender.com/generate?prompt=a%20cute%20cat&amp;style=Cinematic&amp;resolution=768x768" -o cat.jpg
+curl "https://perchance-image-api-vn4j.onrender.com/generate?prompt=a%20cute%20cat&amp;style=Cinematic&amp;resolution=768x768" -o cat.jpg
 
 # JSON com base64
-curl -X POST https://SEU-SERVICO.onrender.com/generate \
+curl -X POST https://perchance-image-api-vn4j.onrender.com/generate \
   -H "Content-Type: application/json" \
   -d '{
     "prompt": "cyberpunk city at night",
@@ -173,13 +284,12 @@ curl -X POST https://SEU-SERVICO.onrender.com/generate \
     "seed": 42,
     "response_format": "json"
   }'</pre>
-        <div class="hint">Geração em ~5–15 s. Sem navegador e sem aquecimento longo.</div>
+        <div class="hint">Geração em ~5–15 s quando o backend tem IP aceito. Sem navegador.</div>
       </div>
       <div>
-        <pre>&lt;script src="perchance-api.js"&gt;&lt;/script&gt;
+        <pre>&lt;script src="config.js"&gt;&lt;/script&gt;
+&lt;script src="perchance-api.js"&gt;&lt;/script&gt;
 &lt;script&gt;
-  PerchanceAPI.setBase("https://SEU-SERVICO.onrender.com");
-
   const r = await PerchanceAPI.generate("a cute cat", {
     style: "Studio Ghibli",
     resolution: "768x768",
@@ -187,7 +297,6 @@ curl -X POST https://SEU-SERVICO.onrender.com/generate \
     seed: 12345,
     negativePrompt: "blurry, low quality"
   });
-
   document.querySelector("img").src = r.dataUrl;
 &lt;/script&gt;</pre>
         <div class="hint">O SDK chama o backend e devolve <code>dataUrl</code> + metadados.</div>
@@ -199,8 +308,8 @@ curl -X POST https://SEU-SERVICO.onrender.com/generate \
     <h2>Endpoints</h2>
     <table>
       <tr><th>Método</th><th>Rota</th><th>Descrição</th></tr>
-      <tr><td><span class="tag">GET</span></td><td><code>/health</code></td><td>Status do serviço e se o navegador está pronto</td></tr>
-      <tr><td><span class="tag">GET</span></td><td><code>/warmup</code></td><td>Cria a sessão HTTP e valida o acesso (chame uma vez após o deploy)</td></tr>
+      <tr><td><span class="tag">GET</span></td><td><code>/health</code></td><td>Status do serviço e se está pronto</td></tr>
+      <tr><td><span class="tag">GET</span></td><td><code>/warmup</code></td><td>Cria a sessão HTTP e valida o acesso</td></tr>
       <tr><td><span class="tag">GET</span></td><td><code>/styles</code></td><td>Lista os 76 estilos</td></tr>
       <tr><td><span class="tag">GET</span></td><td><code>/generate?prompt=...</code></td><td>Retorna a imagem JPEG</td></tr>
       <tr><td><span class="tag">POST</span></td><td><code>/generate</code></td><td>JSON (<code>response_format=json</code>) ou JPEG</td></tr>
@@ -208,22 +317,18 @@ curl -X POST https://SEU-SERVICO.onrender.com/generate \
   </section>
 
   <section id="deploy">
-    <h2>Deploy no Render</h2>
-    <p class="section-sub">O servidor é um container Docker; o Render builda e hospeda.</p>
+    <h2>Deploy</h2>
+    <p class="section-sub">O frontend está no GitHub Pages; a API no Render.</p>
     <div class="deploy">
       <ol>
-        <li><b>Fork</b> ou use este repositório no Render.</li>
-        <li><b>New → Blueprint</b> e selecione o repositório (o <code>render.yaml</code> já está pronto).</li>
-        <li>Aguarde o build do Docker (rápido: sem download de navegador).</li>
-        <li>Abra <code>https://SEU-SERVICO.onrender.com/warmup</code> uma vez.</li>
-        <li>Teste <code>/health</code> → <code>{"status":"ok","ready":true}</code>.</li>
+        <li><b>API:</b> Render → New → Blueprint → este repositório (o <code>render.yaml</code> está pronto).</li>
+        <li><b>Warmup:</b> abra <code>/warmup</code> uma vez após o deploy.</li>
+        <li><b>Frontend:</b> o Pages publica a pasta <code>docs/</code> a cada push em <code>main</code>.</li>
       </ol>
       <div class="note">
-        Sem navegador, o consumo é baixo: o plano gratuito do Render (512 MB) é suficiente.
-        O free “dorme” após inatividade — a primeira chamada depois disso só demora alguns segundos para acordar.
-        <br><br>
         Se o Render recusar a verificação (<code>token_required</code>, IP de datacenter), configure
-        <code>PERCHANCE_PROXY</code> com um proxy HTTP residencial/sticky. Continua sem navegador.
+        <code>PERCHANCE_PROXY</code> com um proxy HTTP residencial/sticky no dashboard do Render.
+        Continua sem navegador.
       </div>
     </div>
   </section>
@@ -233,5 +338,106 @@ curl -X POST https://SEU-SERVICO.onrender.com/generate \
     <span><a href="https://github.com/CerberusLD/perchance-image-api">GitHub</a> · <a href="api.html">API</a></span>
   </footer>
 </div>
+
+<script src="config.js"></script>
+<script src="perchance-api.js"></script>
+<script>
+(function () {
+  var baseInput = document.getElementById('base');
+  var apiHost = document.getElementById('apiHost');
+  var statusEl = document.getElementById('status');
+  var results = document.getElementById('results');
+  var styleSel = document.getElementById('style');
+  var chips = document.getElementById('chips');
+  var guidance = document.getElementById('guidance');
+  var gval = document.getElementById('gval');
+
+  function setStatus(msg, cls) {
+    statusEl.textContent = msg;
+    statusEl.className = 'status' + (cls ? ' ' + cls : '');
+  }
+
+  function syncBase() {
+    var b = PerchanceAPI.getBase() || '';
+    baseInput.value = b;
+    try { apiHost.textContent = new URL(b).host; } catch (e) { apiHost.textContent = b; }
+  }
+  syncBase();
+
+  document.getElementById('saveBase').addEventListener('click', function () {
+    PerchanceAPI.setBase(baseInput.value);
+    syncBase();
+    setStatus('API definida: ' + PerchanceAPI.getBase(), 'ok');
+  });
+
+  document.getElementById('health').addEventListener('click', async function () {
+    setStatus('testando…');
+    try {
+      var h = await PerchanceAPI.health();
+      setStatus('online · ready=' + h.ready, 'ok');
+    } catch (e) {
+      setStatus('offline: ' + (e.message || e), 'err');
+    }
+  });
+
+  // estilos do JSON estático (funciona mesmo com a API dormindo)
+  fetch('styles.json').then(function (r) { return r.json(); }).then(function (data) {
+    Object.keys(data || {}).sort().forEach(function (name) {
+      var o = document.createElement('option');
+      o.value = name; o.textContent = name; styleSel.appendChild(o);
+      var c = document.createElement('span');
+      c.className = 'chip'; c.textContent = name;
+      c.addEventListener('click', function () { styleSel.value = name; });
+      chips.appendChild(c);
+    });
+  }).catch(function () {});
+
+  guidance.addEventListener('input', function () { gval.textContent = guidance.value; });
+
+  document.getElementById('go').addEventListener('click', async function () {
+    var prompt = document.getElementById('prompt').value.trim();
+    if (!prompt) { setStatus('Informe um prompt.', 'err'); return; }
+    if (!PerchanceAPI.getBase()) { setStatus('Defina a URL da API acima.', 'err'); return; }
+
+    var opts = {
+      style: styleSel.value || null,
+      resolution: document.getElementById('resolution').value,
+      guidanceScale: Number(guidance.value)
+    };
+    var neg = document.getElementById('negative').value.trim();
+    if (neg) opts.negativePrompt = neg;
+    var seed = document.getElementById('seed').value;
+    if (seed) opts.seed = Number(seed);
+    var n = parseInt(document.getElementById('count').value, 10) || 1;
+
+    var btn = this;
+    btn.disabled = true;
+    results.innerHTML = '';
+    for (var i = 0; i < n; i++) {
+      var d = document.createElement('div');
+      d.className = 'ph'; d.textContent = 'gerando…';
+      results.appendChild(d);
+    }
+    setStatus('Gerando ' + n + ' imagem(ns)… pode levar 5–30 s');
+
+    try {
+      var out = await PerchanceAPI.generateBatch(prompt, opts, n);
+      results.innerHTML = '';
+      out.forEach(function (r) {
+        var img = document.createElement('img');
+        img.src = r.dataUrl;
+        img.alt = prompt;
+        results.appendChild(img);
+      });
+      setStatus('OK — ' + out.length + ' imagem(ns) gerada(s).', 'ok');
+    } catch (e) {
+      results.innerHTML = '<div class="ph">erro ao gerar</div>';
+      setStatus('Erro: ' + (e && e.message ? e.message : e), 'err');
+    } finally {
+      btn.disabled = false;
+    }
+  });
+})();
+</script>
 </body>
 </html>

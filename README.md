@@ -68,9 +68,9 @@ curl http://127.0.0.1:8000/health
 | `docs/` | GitHub Pages (estático) | Site de introdução + referência da API |
 | `server.py` + `perchance_client.py` | Render (Docker) | API real via Flask + curl_cffi (sem navegador) |
 
-- Site: https://cerberusld.github.io/perchance-image-api/
+- Site (landing + playground): https://cerberusld.github.io/perchance-image-api/
 - Referência: https://cerberusld.github.io/perchance-image-api/api.html
-- API: `https://SEU-SERVICO.onrender.com`
+- API publicada: **https://perchance-image-api-vn4j.onrender.com**
 
 O Pages publica a pasta `docs/` a cada push em `main` (Settings → Pages → Deploy from a branch → main /docs).
 
@@ -78,7 +78,7 @@ O Pages publica a pasta `docs/` a cada push em `main` (Settings → Pages → De
 
 1. Render → **New → Blueprint** → selecione este repositório (o `render.yaml` já está pronto).
 2. Aguarde o build do Docker (rápido: sem download de navegador).
-3. Abra `https://SEU-SERVICO.onrender.com/warmup` uma vez (cria a sessão HTTP e valida o acesso).
+3. Abra `https://perchance-image-api-vn4j.onrender.com/warmup` uma vez (cria a sessão HTTP e valida o acesso).
 4. Confirme `GET /health` → `{"status":"ok","ready":true}`.
 
 > **Plano free do Render:** 512 MB são suficientes: sem navegador, o consumo é baixo e a geração leva ~5–15 s. O free dorme após inatividade — a primeira chamada depois disso demora alguns segundos para acordar.
@@ -114,6 +114,41 @@ Por isso a geração roda no Render (curl_cffi, sem navegador) e o Pages é só 
 
 
 
+## API publicada
+
+Base: **https://perchance-image-api-vn4j.onrender.com**
+
+| Método | Rota | Descrição |
+|---|---|---|
+| GET | `/` | Metadados e lista de endpoints |
+| GET | `/health` | `{"status":"ok","ready":true|false}` |
+| GET | `/warmup` | Cria a sessão HTTP e valida o acesso |
+| GET | `/styles` | Lista os 76 estilos |
+| GET | `/generate?prompt=...` | JPEG direto |
+| POST | `/generate` | JPEG (padrão) ou JSON com `response_format=json` |
+
+```bash
+# JPEG direto
+curl "https://perchance-image-api-vn4j.onrender.com/generate?prompt=a%20cute%20cat&style=Cinematic&resolution=768x768" -o cat.jpg
+
+# JSON com base64
+curl -X POST https://perchance-image-api-vn4j.onrender.com/generate \
+  -H "Content-Type: application/json" \
+  -d '{"prompt":"cyberpunk city","style":"Pixel Art","resolution":"768x512","seed":42,"response_format":"json"}'
+
+# saúde / estilos
+curl https://perchance-image-api-vn4j.onrender.com/health
+curl https://perchance-image-api-vn4j.onrender.com/styles
+```
+
+O playground da landing usa essa mesma base. Para apontar para outro host (Vercel, Railway, Fly ou VPS), edite `docs/config.js`:
+
+```js
+window.PERCHANCE_API_BASE = "https://SEU-HOST";
+```
+
+> **Importante:** em IP de datacenter o Perchance pode responder `token_required` no `/generate`. Configure `PERCHANCE_PROXY` (proxy HTTP residencial/sticky) no host para que a geração funcione; o fluxo continua 100% sem navegador.
+
 ## Parâmetros de `/generate`
 
 | Parâmetro | Tipo | Default | Descrição |
@@ -135,7 +170,7 @@ Por isso a geração roda no Render (curl_cffi, sem navegador) e o Pages é só 
 
 ## Notas
 
-- A primeira geração leva 30–90 s (aquecimento). As seguintes ~5–15 s.
+- A primeira chamada após o deploy (ou depois de o serviço dormir) pode levar alguns segundos a mais; depois, ~5–15 s por imagem.
 - Um cliente por processo; não paralelize na mesma instância.
 - O `userKey` expira em ~30 s; o cliente o atualiza automaticamente.
-- Documentação detalhada em `perchance-api.md` (§16).
+- Documentação detalhada em `perchance-api.md` (§17).
