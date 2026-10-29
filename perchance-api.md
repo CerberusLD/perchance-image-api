@@ -1065,3 +1065,43 @@ So the Turnstile token is not required when a valid ad code is supplied.
 ### 17.6 Result
 
 `perchance_client.py` now uses this flow with `curl_cffi` only. No Firefox, no Camoufox, no 150 MB download, low memory — suitable for the Render free plan.
+
+---
+
+## 18. Hosting on Render: provider chain (verified 2026-10-29)
+
+### 18.1 The wall
+
+`verifyUser` accepts the ad code as `accessCode` only from IPs Perchance trusts. From Render's datacenter IP (74.220.48.219) every TLS impersonation (chrome, chrome110/120/124, firefox, firefox133, safari, edge101) returns:
+
+```json
+{"status":"failed_verification","reason":"token_required"}
+```
+
+The embed's own JS confirms the intended flow is `verifyUser?browserId=...&token=<turnstile>` (or tokenless if already verified); the ad-code shortcut is IP-sensitive.
+
+### 18.2 The chain
+
+`server.py` implements `IMAGE_PROVIDER=auto` (default):
+
+1. **Perchance** — full control (negative, guidance, seed, 76 styles). Works from residential IPs and via `PERCHANCE_PROXY`.
+2. **Cloudflare Workers AI** — free tier, no card. SDXL supports prompt, negative, width, height, guidance, seed. Enabled by `CF_ACCOUNT_ID` + `CF_API_TOKEN` (optional `CF_MODEL`; `@cf/black-forest-labs/flux-1-schnell` is the faster alternative).
+3. **Pollinations** — keyless, `https://image.pollinations.ai/prompt/...`. Free tier is **1 image / 45 s per IP**; the server serializes and waits between calls. A `POLLINATIONS_TOKEN` removes the limit.
+
+The response exposes the winner via `X-Image-Provider` (JPEG) or `"provider"` (JSON). Force one with `?provider=perchance|cloudflare|pollinations`.
+
+### 18.3 Verified from Render
+
+| Request | Result |
+|---|---|
+| `GET /` | `cloudflare_ready:false`, providers listed |
+| `GET /generate` #1 | 200, 35,738 B, `x-image-provider: pollinations`, 10.5 s |
+| `GET /generate` #2 | 200, 38,999 B, `x-image-provider: pollinations`, 49.0 s (throttle) |
+
+### 18.4 Making it fast
+
+Set the two Cloudflare env vars in Render. The chain then returns Cloudflare images in ~2–6 s and Perchance is skipped only when it fails. No browser, no proxy, no cost at this volume.
+
+### 18.5 Why not a free residential proxy
+
+Free lists are datacenter (same block), untrusted (MITM/logging) and unstable. Real residential IPs cost money. The only free, safe residential IP is the user's own connection — usable via a Cloudflare/Tailscale tunnel, but that requires a machine at home to stay on.

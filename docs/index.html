@@ -222,6 +222,7 @@
           </div>
           <div class="hint">
             A primeira chamada pode acordar o serviço no Render (alguns segundos).
+            Sem chave de fallback, o Pollinations limita a ~1 imagem a cada 45 s.
           </div>
         </div>
       </div>
@@ -419,7 +420,7 @@ curl -X POST https://perchance-image-api-vn4j.onrender.com/generate \
       d.className = 'ph'; d.textContent = 'gerando…';
       results.appendChild(d);
     }
-    setStatus('Gerando ' + n + ' imagem(ns)… pode levar 5–30 s');
+    setStatus('Gerando ' + n + ' imagem(ns)… pode levar 5–60 s');
 
     try {
       var out = n === 1
