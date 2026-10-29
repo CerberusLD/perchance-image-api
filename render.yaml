@@ -1,34 +1,13 @@
-# Render Blueprint — https://render.com/docs/blueprint-spec
-# Deploy: Dashboard -> New -> Blueprint -> select this repo.
+# Render Blueprint — Perchance-only (Camoufox) edition.
 #
-# No browser is used. On Render's datacenter IP, Perchance may reject the
-# ad-code verification (reason: token_required). By default the API then falls
-# back to Pollinations (free, keyless) so /generate keeps returning images.
-# Optional: set PERCHANCE_PROXY to a residential/sticky HTTP proxy to make
-# Perchance itself work (http://user:pass@host:port).
+# IMPORTANT: a real browser needs CPU and RAM. The free plan (512 MB / 0.1 CPU)
+# cannot run Camoufox reliably; use the Starter plan (2 GB / 0.5 CPU) or higher.
+# Verified: Camoufox passes Perchance's Turnstile from datacenter IPs.
 services:
   - type: web
     name: perchance-image-api
     runtime: docker
-    plan: free
+    plan: starter
     dockerfilePath: ./Dockerfile
     healthCheckPath: /health
     autoDeploy: true
-    envVars:
-      - key: PERCHANCE_PROXY
-        sync: false
-      - key: IMAGE_PROVIDER
-        value: auto
-      - key: IMAGE_FALLBACK
-        value: pollinations
-      # Free and reliable fallback (Workers AI free tier, no card).
-      # Dash -> Workers AI -> Use REST API -> Create token.
-      - key: CF_ACCOUNT_ID
-        sync: false
-      - key: CF_API_TOKEN
-        sync: false
-      - key: CF_MODEL
-        value: "@cf/stabilityai/stable-diffusion-xl-base-1.0"
-      # Optional: Pollinations key removes the 1-image/45s per-IP limit.
-      - key: POLLINATIONS_TOKEN
-        sync: false
