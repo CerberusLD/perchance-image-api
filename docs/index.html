@@ -421,7 +421,9 @@ curl -X POST https://perchance-image-api-vn4j.onrender.com/generate \
     setStatus('Gerando ' + n + ' imagem(ns)… pode levar 5–30 s');
 
     try {
-      var out = await PerchanceAPI.generateBatch(prompt, opts, n);
+      var out = n === 1
+        ? [await PerchanceAPI.generate(prompt, opts)]
+        : await PerchanceAPI.generateBatch(prompt, opts, n);
       results.innerHTML = '';
       out.forEach(function (r) {
         var img = document.createElement('img');
