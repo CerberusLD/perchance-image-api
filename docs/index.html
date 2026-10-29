@@ -221,6 +221,9 @@ curl -X POST https://SEU-SERVICO.onrender.com/generate \
       <div class="note">
         Sem navegador, o consumo é baixo: o plano gratuito do Render (512 MB) é suficiente.
         O free “dorme” após inatividade — a primeira chamada depois disso só demora alguns segundos para acordar.
+        <br><br>
+        Se o Render recusar a verificação (<code>token_required</code>, IP de datacenter), configure
+        <code>PERCHANCE_PROXY</code> com um proxy HTTP residencial/sticky. Continua sem navegador.
       </div>
     </div>
   </section>

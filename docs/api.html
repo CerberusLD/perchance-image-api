@@ -130,6 +130,7 @@ curl https://SEU-SERVICO.onrender.com/warmup</pre>
     <li>A primeira chamada após o deploy (ou após o serviço dormir) pode levar alguns segundos a mais; depois, ~5–15 s por imagem.</li>
     <li>As chamadas são serializadas: uma geração por vez.</li>
     <li>Sem navegador, o plano gratuito do Render (512 MB) é suficiente; a geração leva ~5–15 s.</li>
+    <li>Se o Render retornar <code>token_required</code> (IP de datacenter), configure <code>PERCHANCE_PROXY</code> com um proxy HTTP residencial/sticky.</li>
     <li>GitHub Pages serve apenas esta documentação; a API roda no Render.</li>
   </ul>
 

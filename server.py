@@ -16,7 +16,7 @@ from pathlib import Path
 
 from flask import Flask, request, jsonify, send_file
 
-from perchance_client import API_BASE, PerchanceClient, load_styles
+from perchance_client import PerchanceClient, load_styles
 
 app = Flask(__name__)
 _lock = threading.Lock()
@@ -76,36 +76,6 @@ def warmup():
 @app.get("/health")
 def health():
     return jsonify({"status": "ok", "ready": _client is not None})
-
-
-@app.get("/diag")
-def diag():
-    """Temporary diagnostics: egress IP, ad code prefix, verifyUser response."""
-    import urllib.request
-    out = {}
-    try:
-        out["ip"] = urllib.request.urlopen("https://api.ipify.org", timeout=10).read().decode()
-    except Exception as e:
-        out["ip"] = f"error: {e}"
-    try:
-        c = get_client()
-        ad = c.ad_code(force=True)
-        out["ad_len"] = len(ad)
-        out["ad_prefix"] = ad[:8]
-        # warm the embed page to try to obtain cf_clearance
-        w = c.session.get(f"{API_BASE}/embed", headers=c._embed_headers(), timeout=30)
-        out["embed_status"] = w.status_code
-        out["cookies"] = list(c.session.cookies.keys())
-        r = c.session.get(
-            f"{API_BASE}/api/verifyUser",
-            params={"browserId": c.browser_id, "accessCode": ad, "thread": 0},
-            headers=c._embed_headers(), timeout=30,
-        )
-        out["verify_status"] = r.status_code
-        out["verify_body"] = r.text[:300]
-    except Exception as e:
-        out["error"] = str(e)
-    return jsonify(out)
 
 
 @app.get("/styles")

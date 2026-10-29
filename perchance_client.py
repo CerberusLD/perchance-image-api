@@ -205,7 +205,11 @@ class PerchanceClient:
                 time.sleep(0.5)
                 continue
             break
-        raise PerchanceError(f"verifyUser failed: {last}")
+        raise PerchanceError(
+            "verifyUser failed: Perchance rejected the ad code for this IP "
+            f"({last}). This usually means the server's datacenter IP is flagged; "
+            "set PERCHANCE_PROXY to a residential/sticky HTTP proxy and retry."
+        )
 
     # ---------- generation ----------
     def generate(self, prompt: str, *, negative_prompt: str = "",

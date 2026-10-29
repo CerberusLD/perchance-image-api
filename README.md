@@ -82,6 +82,8 @@ O Pages publica a pasta `docs/` a cada push em `main` (Settings → Pages → De
 4. Confirme `GET /health` → `{"status":"ok","ready":true}`.
 
 > **Plano free do Render:** 512 MB são suficientes: sem navegador, o consumo é baixo e a geração leva ~5–15 s. O free dorme após inatividade — a primeira chamada depois disso demora alguns segundos para acordar.
+>
+> **IP de datacenter:** o Render usa IP de datacenter e o Perchance pode recusar a verificação do ad code com `token_required`. Nesse caso, configure `PERCHANCE_PROXY` no dashboard do Render com um proxy HTTP residencial/sticky (`http://user:pass@host:port`). O fluxo inteiro (ad code, verifyUser, generate, download) passa pelo mesmo IP — continua sem navegador.
 
 ### Por que a API não roda no Pages
 

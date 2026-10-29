@@ -1,9 +1,10 @@
 # Render Blueprint — https://render.com/docs/blueprint-spec
 # Deploy: Dashboard -> New -> Blueprint -> select this repo.
 #
-# NOTE: the free plan has 512 MB RAM. Camoufox (Firefox) + generation can be
-# tight; if the service restarts/OOMs during generation, switch plan to
-# `starter` (or any >=1 GB instance).
+# No browser is used. On Render's datacenter IP, Perchance may reject the
+# ad-code verification (reason: token_required). If /generate returns that,
+# set PERCHANCE_PROXY in the Render dashboard to a residential/sticky HTTP
+# proxy (http://user:pass@host:port). The whole flow then uses that IP.
 services:
   - type: web
     name: perchance-image-api
@@ -12,3 +13,6 @@ services:
     dockerfilePath: ./Dockerfile
     healthCheckPath: /health
     autoDeploy: true
+    envVars:
+      - key: PERCHANCE_PROXY
+        sync: false
