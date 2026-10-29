@@ -27,7 +27,8 @@ import urllib.parse
 from flask import Flask, request, jsonify, send_file
 from curl_cffi import requests as creq
 
-from perchance_client import PerchanceClient, apply_style, load_styles
+from perchance_client import (API_BASE, V_HASH, PerchanceClient, apply_style,
+                              load_styles)
 
 app = Flask(__name__)
 _lock = threading.Lock()
@@ -115,6 +116,41 @@ def health():
 @app.get("/styles")
 def styles():
     return jsonify(sorted(load_styles().keys()))
+
+
+@app.post("/diag/raw")
+def diag_raw():
+    """Temporary: test whether a userKey issued on another IP works here."""
+    d = request.get_json(force=True) or {}
+    key = d.get("userKey") or ""
+    ad = d.get("adAccessCode") or ""
+    if not key:
+        return jsonify({"error": "userKey required"}), 400
+    c = PerchanceClient()
+    c.start()
+    rid = f"0.{random.getrandbits(30)}"
+    body = {
+        "prompt": d.get("prompt", "a small red apple on a table"),
+        "negativePrompt": "",
+        "seed": 1,
+        "resolution": "512x512",
+        "guidanceScale": 7,
+        "channel": "ai-text-to-image-generator",
+        "subChannel": "public",
+        "userKey": key,
+        "adAccessCode": ad,
+        "requestId": rid,
+    }
+    params = {
+        "userKey": key, "requestId": rid, "adAccessCode": ad,
+        "v": V_HASH, "__cacheBust": str(random.random()),
+    }
+    r = c.session.post(
+        f"{API_BASE}/api/generate", params=params, json=body,
+        headers={**c._embed_headers(), "Content-Type": "application/json"},
+        timeout=90,
+    )
+    return jsonify({"status_code": r.status_code, "body": r.text[:600]})
 
 
 def _dims(resolution: str):
