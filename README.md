@@ -62,6 +62,66 @@ curl http://127.0.0.1:8000/styles
 curl http://127.0.0.1:8000/health
 ```
 
+## GitHub Pages (frontend estático) + backend
+
+O repositório tem duas partes:
+
+| Parte | Onde roda | O que faz |
+|---|---|---|
+| `docs/` | GitHub Pages (estático) | Painel/playground, SDK `perchance-api.js`, referência da API |
+| `server.py` + `perchance_client.py` | Servidor (local/VPS/Render/Railway/Fly) | Geração real via Flask + Camoufox |
+
+O deploy do frontend é automático pelo workflow `.github/workflows/pages.yml` a cada push em `main` (Settings → Pages → Source: GitHub Actions).
+
+```
+https://SEU-USUARIO.github.io/perchance-image-api/
+https://SEU-USUARIO.github.io/perchance-image-api/api.html
+```
+
+No painel, cole a URL pública do backend no campo **API base** (ex.: `https://seu-servico.onrender.com`). O backend já responde com CORS liberado.
+
+### Por que não dá para gerar direto no Pages
+
+O GitHub Pages é **hospedagem estática**: não executa Python, não abre navegador e não resolve Cloudflare/Turnstile. Além disso:
+
+- `perchance.org` envia `X-Frame-Options: sameorigin` → não pode ser embutido em iframe de outro domínio.
+- O endpoint do ad code não tem CORS → o navegador não consegue chamá-lo de `github.io`.
+- O embed `image-generation.perchance.org` só permite `frame-ancestors` de `*.perchance.org`.
+
+Por isso a geração roda no `server.py` (Camoufox), e o Pages é o frontend. Para ter um endpoint HTTP real, publique o backend:
+
+```bash
+# local
+.venv/bin/python server.py
+
+# Docker (VPS / Render / Railway / Fly)
+docker build -t perchance-api .
+docker run -p 8000:8000 perchance-api
+```
+
+O repo inclui `Dockerfile`, `render.yaml` e `Procfile` prontos.
+
+### SDK no navegador
+
+```html
+<script src="https://SEU-USUARIO.github.io/perchance-image-api/perchance-api.js"></script>
+<script>
+  PerchanceAPI.setBase("https://SEU-BACKEND");
+  const r = await PerchanceAPI.generate("a cute cat", {
+    style: "Cinematic",
+    resolution: "768x768",
+    guidanceScale: 7,
+    seed: 12345,
+    negativePrompt: "blurry, low quality"
+  });
+  document.querySelector("img").src = r.dataUrl;
+</script>
+```
+
+> Em repositório **privado**, o GitHub Pages exige plano pago (Pro/Team/Enterprise). Se o Pages não ativar, torne o repositório público ou use um plano compatível.
+
+
+
 ## Parâmetros de `/generate`
 
 | Parâmetro | Tipo | Default | Descrição |

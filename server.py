@@ -23,6 +23,21 @@ _lock = threading.Lock()
 _client = None
 
 
+@app.after_request
+def _cors(resp):
+    # Allow the static GitHub Pages frontend (any origin) to call this API.
+    resp.headers["Access-Control-Allow-Origin"] = "*"
+    resp.headers["Access-Control-Allow-Headers"] = "Content-Type"
+    resp.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+@app.route("/generate", methods=["OPTIONS"])
+def _options():
+    return ("", 204)
+
+
 def get_client() -> PerchanceClient:
     global _client
     if _client is None:

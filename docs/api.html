@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Perchance Image API — referência</title>
+<style>
+  :root { --bg:#070b12; --card:#111a29; --fg:#e8eef7; --muted:#93a1b5; --accent:#5b8cff;
+          --border:#22304a; --ok:#3ddc97; --err:#ff6b6b; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg);
+         font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .wrap { max-width: 900px; margin:0 auto; padding:40px 20px 80px; }
+  h1 { font-size:1.6rem; margin:0 0 6px; }
+  .sub { color:var(--muted); font-size:.9rem; margin-bottom:26px; }
+  h2 { font-size:1.05rem; margin:30px 0 10px; }
+  p, li { line-height:1.6; font-size:.92rem; }
+  code { background:#0b1320; border:1px solid var(--border); border-radius:5px; padding:1px 5px; font-size:.85em; }
+  pre { background:#0a111d; border:1px solid var(--border); border-radius:12px; padding:14px;
+        overflow:auto; font-size:.8rem; line-height:1.55; color:#cfe0ff; }
+  table { width:100%; border-collapse:collapse; font-size:.86rem; margin:10px 0 20px; }
+  th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--border); }
+  th { color:var(--muted); font-weight:600; }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:16px; margin-bottom:18px; }
+  input, button { padding:10px 12px; border-radius:10px; border:1px solid var(--border);
+                  background:#0b1320; color:var(--fg); font-size:.9rem; }
+  button { cursor:pointer; background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600; }
+  .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  input { flex:1; min-width:220px; }
+  .status { font-size:.82rem; color:var(--muted); }
+  .status.ok { color:var(--ok); } .status.err { color:var(--err); }
+  a { color:var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Referência da API</h1>
+  <div class="sub">Backend Flask + Camoufox. O GitHub Pages serve esta página; a API roda no servidor configurado abaixo.</div>
+
+  <div class="card">
+    <div class="row">
+      <input id="base" placeholder="https://SEU-BACKEND">
+      <button id="save">Salvar e testar</button>
+    </div>
+    <div id="st" class="status" style="margin-top:10px;">Configure a URL do backend.</div>
+  </div>
+
+  <h2>Endpoints</h2>
+  <table>
+    <tr><th>Método</th><th>Rota</th><th>Descrição</th></tr>
+    <tr><td>GET</td><td><code>/health</code></td><td>Status do serviço e se o navegador Camoufox está pronto</td></tr>
+    <tr><td>GET</td><td><code>/styles</code></td><td>Lista dos 76 estilos</td></tr>
+    <tr><td>GET</td><td><code>/generate?prompt=...</code></td><td>Retorna a imagem JPEG diretamente</td></tr>
+    <tr><td>POST</td><td><code>/generate</code></td><td>JSON; use <code>response_format=json</code> para receber base64</td></tr>
+  </table>
+
+  <h2>Parâmetros</h2>
+  <table>
+    <tr><th>Campo</th><th>Tipo</th><th>Default</th><th>Descrição</th></tr>
+    <tr><td><code>prompt</code></td><td>string</td><td>obrigatório</td><td>Descrição da imagem</td></tr>
+    <tr><td><code>negative_prompt</code></td><td>string</td><td>""</td><td>O que evitar</td></tr>
+    <tr><td><code>resolution</code></td><td>string</td><td>768x768</td><td>512x512 | 512x768 | 768x512 | 768x768</td></tr>
+    <tr><td><code>guidance_scale</code></td><td>float</td><td>7.0</td><td>1–30</td></tr>
+    <tr><td><code>seed</code></td><td>int</td><td>-1</td><td>-1 = aleatório</td></tr>
+    <tr><td><code>style</code></td><td>string</td><td>—</td><td>Um dos 76 estilos</td></tr>
+    <tr><td><code>response_format</code></td><td>string</td><td>—</td><td><code>json</code> para base64</td></tr>
+  </table>
+
+  <h2>Exemplos</h2>
+  <pre>curl "https://SEU-BACKEND/generate?prompt=a%20cute%20cat&style=Cinematic&resolution=768x768" -o cat.jpg
+
+curl -X POST https://SEU-BACKEND/generate \
+  -H "Content-Type: application/json" \
+  -d '{"prompt":"cyberpunk city","style":"Pixel Art","resolution":"768x512","seed":42,"response_format":"json"}'</pre>
+
+  <h2>Resposta JSON</h2>
+  <pre>{
+  "ok": true,
+  "image_b64": "/9j/4AAQSkZJRg...",
+  "seed": 42,
+  "width": 768,
+  "height": 512,
+  "prompt": "cyberpunk city, ...",
+  "negative_prompt": "",
+  "maybe_nsfw": false
+}</pre>
+
+  <h2>Limitação do GitHub Pages</h2>
+  <p>
+    O Pages é estático: não executa Python, não abre navegador e não contorna Cloudflare/Turnstile.
+    Além disso, a Perchance envia <code>X-Frame-Options: sameorigin</code> (bloqueia iframes de outros domínios) e o
+    endpoint do ad code não tem CORS. Portanto a geração precisa do <code>server.py</code> publicado em algum host
+    (local, VPS, Render, Railway, Fly.io). O repositório inclui <code>Dockerfile</code>, <code>render.yaml</code> e
+    <code>Procfile</code> para facilitar.
+  </p>
+  <p><a href="index.html">← voltar ao painel</a></p>
+</div>
+
+<script src="perchance-api.js"></script>
+<script>
+(function () {
+  var base = document.getElementById('base');
+  var st = document.getElementById('st');
+  base.value = PerchanceAPI.getBase() || '';
+  document.getElementById('save').addEventListener('click', async function () {
+    PerchanceAPI.setBase(base.value);
+    st.className = 'status'; st.textContent = 'testando…';
+    try {
+      var h = await PerchanceAPI.health();
+      st.className = 'status ok'; st.textContent = 'online · ready=' + h.ready;
+    } catch (e) {
+      st.className = 'status err'; st.textContent = 'offline: ' + (e.message || e);
+    }
+  });
+  if (PerchanceAPI.getBase()) document.getElementById('save').click();
+})();
+</script>
+</body>
+</html>
