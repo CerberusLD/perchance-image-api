@@ -16,7 +16,7 @@ from pathlib import Path
 
 from flask import Flask, request, jsonify, send_file
 
-from perchance_client import PerchanceClient, load_styles
+from perchance_client import API_BASE, PerchanceClient, load_styles
 
 app = Flask(__name__)
 _lock = threading.Lock()
