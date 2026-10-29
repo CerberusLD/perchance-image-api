@@ -2,9 +2,10 @@
 # Deploy: Dashboard -> New -> Blueprint -> select this repo.
 #
 # No browser is used. On Render's datacenter IP, Perchance may reject the
-# ad-code verification (reason: token_required). If /generate returns that,
-# set PERCHANCE_PROXY in the Render dashboard to a residential/sticky HTTP
-# proxy (http://user:pass@host:port). The whole flow then uses that IP.
+# ad-code verification (reason: token_required). By default the API then falls
+# back to Pollinations (free, keyless) so /generate keeps returning images.
+# Optional: set PERCHANCE_PROXY to a residential/sticky HTTP proxy to make
+# Perchance itself work (http://user:pass@host:port).
 services:
   - type: web
     name: perchance-image-api
@@ -16,3 +17,7 @@ services:
     envVars:
       - key: PERCHANCE_PROXY
         sync: false
+      - key: IMAGE_PROVIDER
+        value: auto
+      - key: IMAGE_FALLBACK
+        value: pollinations

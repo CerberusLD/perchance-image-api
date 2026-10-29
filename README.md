@@ -2,6 +2,8 @@
 
 API completa e funcional para gerar imagens com `perchance.org/ai-text-to-image-generator`, com o problema de detecção de bots (Cloudflare Turnstile) **resolvido sem navegador**: HTTP puro com `curl_cffi`, usando o ad code como `accessCode` no `verifyUser`.
 
+Se o IP do host for recusado (`token_required`, típico de datacenter), a API cai automaticamente no **Pollinations** (grátis, sem chave) para continuar devolvendo imagens. O parâmetro `provider` permite forçar `perchance` ou `pollinations`.
+
 ## O que há aqui
 
 | Arquivo | Descrição |
@@ -147,7 +149,7 @@ O playground da landing usa essa mesma base. Para apontar para outro host (Verce
 window.PERCHANCE_API_BASE = "https://SEU-HOST";
 ```
 
-> **Importante:** em IP de datacenter o Perchance pode responder `token_required` no `/generate`. Configure `PERCHANCE_PROXY` (proxy HTTP residencial/sticky) no host para que a geração funcione; o fluxo continua 100% sem navegador.
+> **Importante:** em IP de datacenter o Perchance pode responder `token_required`. Por padrão a API então usa o **Pollinations** automaticamente e devolve a imagem mesmo assim (`X-Image-Provider: pollinations`). Para usar o Perchance nesse host, configure `PERCHANCE_PROXY` (proxy HTTP residencial/sticky); o fluxo continua 100% sem navegador.
 
 ## Parâmetros de `/generate`
 
@@ -159,6 +161,7 @@ window.PERCHANCE_API_BASE = "https://SEU-HOST";
 | `guidance_scale` | float | `7.0` | 1–30, aderência ao prompt |
 | `seed` | int | `-1` | -1 = aleatório; mesmo seed ≈ mesma imagem |
 | `style` | string | — | Qualquer um dos 76 estilos |
+| `provider` | string | `auto` | `auto` \| `perchance` \| `pollinations` |
 | `response_format` | string | — | `json` para base64 |
 
 ## Como funciona (resumo)
@@ -171,6 +174,8 @@ window.PERCHANCE_API_BASE = "https://SEU-HOST";
 ## Notas
 
 - A primeira chamada após o deploy (ou depois de o serviço dormir) pode levar alguns segundos a mais; depois, ~5–15 s por imagem.
+- No Render (IP de datacenter) o Perchance é recusado e a API usa o Pollinations automaticamente; o header `X-Image-Provider` e o campo `provider` no JSON dizem qual foi usado.
+- Variáveis: `IMAGE_PROVIDER=auto|perchance|pollinations` e `IMAGE_FALLBACK=pollinations|none`.
 - Um cliente por processo; não paralelize na mesma instância.
 - O `userKey` expira em ~30 s; o cliente o atualiza automaticamente.
 - Documentação detalhada em `perchance-api.md` (§17).

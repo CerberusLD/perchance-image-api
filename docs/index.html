@@ -326,8 +326,9 @@ curl -X POST https://perchance-image-api-vn4j.onrender.com/generate \
         <li><b>Frontend:</b> o Pages publica a pasta <code>docs/</code> a cada push em <code>main</code>.</li>
       </ol>
       <div class="note">
-        Se o Render recusar a verificação (<code>token_required</code>, IP de datacenter), configure
-        <code>PERCHANCE_PROXY</code> com um proxy HTTP residencial/sticky no dashboard do Render.
+        Se o Render recusar a verificação do Perchance (<code>token_required</code>, IP de datacenter),
+        a API usa o <b>Pollinations</b> automaticamente (grátis, sem chave) e continua devolvendo imagens.
+        Para forçar o Perchance, configure <code>PERCHANCE_PROXY</code> com um proxy residencial/sticky.
         Continua sem navegador.
       </div>
     </div>
@@ -431,7 +432,8 @@ curl -X POST https://perchance-image-api-vn4j.onrender.com/generate \
         img.alt = prompt;
         results.appendChild(img);
       });
-      setStatus('OK — ' + out.length + ' imagem(ns) gerada(s).', 'ok');
+      var prov = (out[0] && out[0].provider) ? ' · via ' + out[0].provider : '';
+      setStatus('OK — ' + out.length + ' imagem(ns) gerada(s)' + prov + '.', 'ok');
     } catch (e) {
       results.innerHTML = '<div class="ph">erro ao gerar</div>';
       setStatus('Erro: ' + (e && e.message ? e.message : e), 'err');
