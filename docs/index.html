@@ -289,7 +289,11 @@ Settings -> Pages -> Source: GitHub Actions
   var cfgStatus = document.getElementById('cfgStatus');
   var styles = {};
 
-  baseInput.value = PerchanceAPI.getBase() || 'http://127.0.0.1:8000';
+  var savedBase = PerchanceAPI.getBase();
+  baseInput.value = savedBase || (location.protocol === 'https:' ? '' : 'http://127.0.0.1:8000');
+  baseInput.placeholder = location.protocol === 'https:'
+    ? 'https://seu-backend.onrender.com'
+    : 'http://127.0.0.1:8000';
 
   function setCfg(msg, cls) {
     cfgStatus.textContent = msg;
@@ -304,7 +308,13 @@ Settings -> Pages -> Source: GitHub Actions
       setCfg('online · ready=' + h.ready, 'ok');
       loadStyles();
     } catch (e) {
-      setCfg('offline: ' + (e.message || e), 'err');
+      var msg = e.message || String(e);
+      if (/Failed to fetch|NetworkError/i.test(msg) && location.protocol === 'https:' &&
+          /^http:\/\//i.test(PerchanceAPI.getBase())) {
+        msg = 'mixed content: esta página é HTTPS e o backend é http://, o navegador bloqueia. ' +
+              'Publique o backend com HTTPS (Render/Railway/Fly) e use essa URL.';
+      }
+      setCfg('offline: ' + msg, 'err');
     }
   }
 

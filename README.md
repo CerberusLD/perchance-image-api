@@ -71,11 +71,11 @@ O repositório tem duas partes:
 | `docs/` | GitHub Pages (estático) | Painel/playground, SDK `perchance-api.js`, referência da API |
 | `server.py` + `perchance_client.py` | Servidor (local/VPS/Render/Railway/Fly) | Geração real via Flask + Camoufox |
 
-O deploy do frontend é automático pelo workflow `.github/workflows/pages.yml` a cada push em `main` (Settings → Pages → Source: GitHub Actions).
+O deploy do frontend é automático: o GitHub Pages está configurado em **Settings → Pages → Deploy from a branch → main /docs**. Cada push em `main` republica o site.
 
 ```
-https://SEU-USUARIO.github.io/perchance-image-api/
-https://SEU-USUARIO.github.io/perchance-image-api/api.html
+https://cerberusld.github.io/perchance-image-api/
+https://cerberusld.github.io/perchance-image-api/api.html
 ```
 
 No painel, cole a URL pública do backend no campo **API base** (ex.: `https://seu-servico.onrender.com`). O backend já responde com CORS liberado.
@@ -104,7 +104,7 @@ O repo inclui `Dockerfile`, `render.yaml` e `Procfile` prontos.
 ### SDK no navegador
 
 ```html
-<script src="https://SEU-USUARIO.github.io/perchance-image-api/perchance-api.js"></script>
+<script src="https://cerberusld.github.io/perchance-image-api/perchance-api.js"></script>
 <script>
   PerchanceAPI.setBase("https://SEU-BACKEND");
   const r = await PerchanceAPI.generate("a cute cat", {
