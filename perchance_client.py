@@ -176,25 +176,36 @@ class PerchanceClient:
         now = time.time()
         if not force and self._key and (now - self._key_ts) < 20:
             return self._key
-        ad = self.ad_code()
-        r = self.session.get(
-            f"{API_BASE}/api/verifyUser",
-            params={
-                "browserId": self.browser_id,
-                "accessCode": ad,
-                "thread": 0,
-                "__cacheBust": random.random(),
-            },
-            headers=self._embed_headers(), timeout=30,
-        )
-        try:
-            data = r.json()
-        except Exception:
-            raise PerchanceError(f"verifyUser bad response: HTTP {r.status_code} {r.text[:200]}")
-        if data.get("status") in ("success", "already_verified") and data.get("userKey"):
-            self._key, self._key_ts = data["userKey"], now
-            return self._key
-        raise PerchanceError(f"verifyUser failed: {data}")
+        last = None
+        for attempt in range(5):
+            ad = self.ad_code(force=attempt > 0)
+            r = self.session.get(
+                f"{API_BASE}/api/verifyUser",
+                params={
+                    "browserId": self.browser_id,
+                    "accessCode": ad,
+                    "thread": 0,
+                    "__cacheBust": random.random(),
+                },
+                headers=self._embed_headers(), timeout=30,
+            )
+            try:
+                data = r.json()
+            except Exception:
+                last = f"HTTP {r.status_code} {r.text[:200]}"
+                time.sleep(0.5)
+                continue
+            if data.get("status") in ("success", "already_verified") and data.get("userKey"):
+                self._key, self._key_ts = data["userKey"], now
+                return self._key
+            last = data
+            if data.get("reason") == "token_required":
+                # the ad code/verify pair can be rejected when the egress IP
+                # changes between requests; retry with a fresh code.
+                time.sleep(0.5)
+                continue
+            break
+        raise PerchanceError(f"verifyUser failed: {last}")
 
     # ---------- generation ----------
     def generate(self, prompt: str, *, negative_prompt: str = "",
