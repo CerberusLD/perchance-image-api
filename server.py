@@ -16,7 +16,7 @@ from pathlib import Path
 
 from flask import Flask, request, jsonify, send_file
 
-from perchance_client import PerchanceClient, load_styles
+from perchance_client import API_BASE, PerchanceClient, load_styles
 
 app = Flask(__name__)
 _lock = threading.Lock()
@@ -76,6 +76,33 @@ def warmup():
 @app.get("/health")
 def health():
     return jsonify({"status": "ok", "ready": _client is not None})
+
+
+@app.get("/diag")
+def diag():
+    """Temporary: try verifyUser with different TLS impersonations from this host."""
+    from curl_cffi import requests as cr
+    import secrets
+    out = {"results": {}}
+    try:
+        c = get_client()
+        ad = c.ad_code(force=True)
+        out["ad_prefix"] = ad[:8]
+        for imp in ["chrome", "chrome110", "chrome120", "chrome124", "firefox", "firefox133", "safari", "edge101"]:
+            try:
+                s = cr.Session(impersonate=imp)
+                r = s.get(
+                    f"{API_BASE}/api/verifyUser",
+                    params={"browserId": secrets.token_hex(16), "accessCode": ad, "thread": 0},
+                    headers=c._embed_headers(), timeout=25,
+                )
+                out["results"][imp] = f"{r.status_code} {r.text[:120]}"
+                s.close()
+            except Exception as e:
+                out["results"][imp] = f"error: {e}"
+    except Exception as e:
+        out["error"] = str(e)
+    return jsonify(out)
 
 
 @app.get("/styles")
