@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Perchance Official Image API v1 — ejemplo</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 720px; margin: 2rem auto; }
+  img { max-width: 100%; border: 1px solid #ccc; margin-top: 1rem; }
+  input, button { padding: .5rem; font-size: 1rem; }
+  #status { color: #555; margin-top: .5rem; }
+</style>
+</head>
+<body>
+<h1>Perchance — Image API v1</h1>
+<input id="prompt" value="a cute cat pixel art" style="width:100%">
+<div style="margin-top:.5rem">
+  <select id="res">
+    <option>512x512</option><option selected>768x768</option>
+    <option>512x768</option><option>768x512</option>
+  </select>
+  <input id="seed" type="number" placeholder="seed (opcional)" style="width:120px">
+  <button id="go">Generar</button>
+</div>
+<div id="status">Listo.</div>
+<img id="out" alt="resultado">
+
+<script>
+// Official Image API v1 — iframe + postMessage, no keys, permanent URLs.
+var _warmed = false;
+function warmUp() {
+  return new Promise(function (res) {
+    if (_warmed) return res(true);
+    var f = document.createElement("iframe");
+    f.style.cssText = "width:1px;height:1px;border:0;position:absolute;opacity:0";
+    f.src = "https://perchance.org";
+    var t = setTimeout(function () { f.remove(); res(false); }, 15000);
+    f.onload = function () {
+      clearTimeout(t);
+      setTimeout(function () { f.remove(); _warmed = true; res(true); }, 500);
+    };
+    document.body.appendChild(f);
+  });
+}
+
+var _cache = {};
+function generateImage(prompt, opts) {
+  var key = prompt + JSON.stringify(opts || {});
+  if (_cache[key]) return Promise.resolve({ ok: true, url: _cache[key], cached: true });
+  return new Promise(function (resolve, reject) {
+    var p = new URLSearchParams({ prompt: prompt, format: "json", id: Math.random().toString(36).slice(2) });
+    if (opts) Object.keys(opts).forEach(function (k) { p.set(k, opts[k]); });
+    var f = document.createElement("iframe");
+    f.style.cssText = "width:1px;height:1px;border:0;position:absolute;opacity:0";
+    f.src = "https://perchance.org/perchance-ai-api?" + p;
+    var settled = false;
+    function onMsg(e) {
+      var d = e.data || {};
+      if (d.api !== "perchance-image-api" || !d.result || d.result.id !== p.get("id")) return;
+      finish(d.result.ok ? resolve : reject, d.result);
+    }
+    function finish(cb, result) {
+      if (settled) return; settled = true;
+      window.removeEventListener("message", onMsg);
+      f.remove();
+      if (result.ok) _cache[key] = result.url;
+      cb(result.ok ? result : new Error(result.error || "generation failed"));
+    }
+    window.addEventListener("message", onMsg);
+    document.body.appendChild(f);
+    setTimeout(function () { finish(reject, { ok: false, error: "timeout after 180s" }); }, 180000);
+  });
+}
+
+document.getElementById("go").addEventListener("click", async function () {
+  var status = document.getElementById("status");
+  var img = document.getElementById("out");
+  status.textContent = "Calentando Cloudflare...";
+  await warmUp();
+  status.textContent = "Generando...";
+  var opts = { resolution: document.getElementById("res").value };
+  var s = document.getElementById("seed").value;
+  if (s) opts.seed = Number(s);
+  try {
+    var r = await generateImage(document.getElementById("prompt").value, opts);
+    img.src = r.url;
+    status.textContent = "OK — " + r.url;
+  } catch (e) {
+    status.textContent = "Error: " + e.message;
+  }
+});
+</script>
+</body>
+</html>
