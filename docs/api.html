@@ -38,11 +38,11 @@
 
   <h1>Referência da API</h1>
   <div class="sub">
-    Backend Flask + curl_cffi (HTTP puro, sem navegador), hospedado no Render. Troque <code>SEU-SERVICO.onrender.com</code> pela URL do seu serviço.
+    Backend Flask + curl_cffi (HTTP puro, sem navegador), hospedado no Render. Base: <code>perchance-image-api-vn4j.onrender.com</code>.
   </div>
 
   <h2>Base URL</h2>
-  <pre>https://SEU-SERVICO.onrender.com</pre>
+  <pre>https://perchance-image-api-vn4j.onrender.com</pre>
 
   <h2>Endpoints</h2>
   <table>
@@ -69,10 +69,10 @@
 
   <h2>Exemplos</h2>
   <pre># imagem direta (JPEG)
-curl "https://SEU-SERVICO.onrender.com/generate?prompt=a%20cute%20cat&style=Cinematic&resolution=768x768" -o cat.jpg
+curl "https://perchance-image-api-vn4j.onrender.com/generate?prompt=a%20cute%20cat&style=Cinematic&resolution=768x768" -o cat.jpg
 
 # JSON com base64
-curl -X POST https://SEU-SERVICO.onrender.com/generate \
+curl -X POST https://perchance-image-api-vn4j.onrender.com/generate \
   -H "Content-Type: application/json" \
   -d '{
     "prompt": "cyberpunk city at night",
@@ -84,8 +84,8 @@ curl -X POST https://SEU-SERVICO.onrender.com/generate \
   }'
 
 # saúde / aquecimento
-curl https://SEU-SERVICO.onrender.com/health
-curl https://SEU-SERVICO.onrender.com/warmup</pre>
+curl https://perchance-image-api-vn4j.onrender.com/health
+curl https://perchance-image-api-vn4j.onrender.com/warmup</pre>
 
   <h2>Resposta JSON</h2>
   <pre>{
@@ -102,7 +102,7 @@ curl https://SEU-SERVICO.onrender.com/warmup</pre>
   <h2>SDK JavaScript</h2>
   <pre>&lt;script src="perchance-api.js"&gt;&lt;/script&gt;
 &lt;script&gt;
-  PerchanceAPI.setBase("https://SEU-SERVICO.onrender.com");
+  PerchanceAPI.setBase("https://perchance-image-api-vn4j.onrender.com");
 
   const r = await PerchanceAPI.generate("a cute cat", {
     style: "Studio Ghibli",
