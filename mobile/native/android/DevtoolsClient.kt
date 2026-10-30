@@ -416,6 +416,21 @@ object DevtoolsClient {
 
   // ------------------------------------------------------------- utilidades
 
+  /**
+   * La WebView vive detrás de la interfaz: si el sistema la marca oculta (o su
+   * viewport queda degenerado), el generador NO ejecuta el render. Aquí se fuerza
+   * tamaño real, foco y estado activo antes de tocar nada.
+   */
+  private fun prepare(session: Session) {
+    session.call(
+      "Emulation.setDeviceMetricsOverride",
+      "{\"width\":360,\"height\":640,\"deviceScaleFactor\":2.625,\"mobile\":true}",
+      8000
+    )
+    session.call("Emulation.setFocusEmulationEnabled", "{\"enabled\":true}", 8000)
+    session.call("Page.setWebLifecycleState", "{\"state\":\"active\"}", 8000)
+  }
+
   /** Frame de la UI real: el que tiene campo visible y botón de generar. */
   private fun findUiFrame(session: Session, budgetMs: Int = 45000): String? {
     val deadline = now() + budgetMs
@@ -464,6 +479,7 @@ object DevtoolsClient {
     val link = connectWs(path) ?: run { log("improve: sin websocket"); return null }
     try {
       val session = Session(link)
+      prepare(session)
       val uiFrame = findUiFrame(session, 30000) ?: run { log("improve: sin UI"); return null }
       if (!waitIdle(session, uiFrame, 15000)) log("improve: generador ocupado, se intenta igual")
 
@@ -520,8 +536,9 @@ object DevtoolsClient {
     val link = connectWs(path) ?: return "ERR:no-page"
     try {
       val session = Session(link)
+      prepare(session)
       val uiFrame = findUiFrame(session) ?: return "ERR:no-ui"
-      log("generate: uiFrame=$uiFrame")
+      log("generate: uiFrame=$uiFrame visible=" + session.eval(uiFrame, "document.visibilityState"))
 
       val previous = existingResults(session)
       for ((fid, _) in session.frames()) session.eval(fid, MARK_OLD, timeoutMs = 6000)
@@ -589,6 +606,7 @@ object DevtoolsClient {
     val link = connectWs(path) ?: run { sb.append("websocket: falló"); return sb.toString() }
     try {
       val session = Session(link)
+      prepare(session)
       val frames = session.frames()
       sb.append("frames: ").append(frames.size).append('\n')
       for ((fid, url) in frames) sb.append(" · ").append(url.take(60)).append('\n')

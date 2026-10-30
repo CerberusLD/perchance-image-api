@@ -152,7 +152,20 @@ El botón **Mejorar** del campo de texto hace lo mismo que el 🧠 del generador
 en su campo y pulsa `.ai-suggest-btn` por CDP, esperando a que cambie el textarea. Si no hay
 respuesta en 30 s, aplica `enhancePrompt()` (local). El *toast* indica el origen.
 
-Claves para que no rompa la generación (esto causaba el timeout al añadir la función):
+**La WebView no puede estar oculta con tamaño 0/1 px.** Chromium la marca como `hidden` y el
+generador no ejecuta el render (el clic se acepta y no pasa nada). Por eso la WebView ocupa toda la
+pantalla **detrás** de la interfaz, con `opacity: 0.01` y `pointerEvents="none"`, y el motor fuerza
+antes de cada operación:
+
+```kotlin
+Emulation.setDeviceMetricsOverride(360×640, mobile)
+Emulation.setFocusEmulationEnabled(true)
+Page.setWebLifecycleState("active")
+```
+
+Diagnóstico rápido del síntoma: `Estado: hidden` o `h=1` en `document.visibilityState` / `innerHeight`.
+
+Claves para que el 🧠 no rompa la generación:
 
 - generar, mejorar y diagnosticar pasan por **una sola cola** en JS y por un `synchronized` en
   Kotlin: nunca hay dos sesiones CDP a la vez;

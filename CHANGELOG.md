@@ -24,7 +24,16 @@ Primera versión pública de la app.
 
 ### Corregido
 
-- **Timeout al generar en la app** (tres causas encadenadas):
+- **Timeout al generar en la app** — causa principal: **la WebView oculta medía 1×1 px**.
+  Chromium la marcaba como `visibilityState: "hidden"` con un viewport de 1 px de alto, y el
+  generador no ejecuta el render en esas condiciones: el clic se aceptaba pero no producía nada.
+  Ahora la WebView ocupa la pantalla **detrás** de la interfaz (opaca para el usuario, con layout
+  real) y el motor fuerza por CDP `Emulation.setDeviceMetricsOverride(360×640)`,
+  `Emulation.setFocusEmulationEnabled` y `Page.setWebLifecycleState("active")` antes de interactuar.
+  Verificado en el teléfono: `visibilityState` pasó de `hidden` a `visible` y la misma pulsación
+  generó la imagen en **27,2 s**.
+
+  Causas secundarias, también corregidas:
   1. el motor elegía el primer frame con `textarea` (la página externa, con campos ocultos) en vez
      del frame real del generador;
   2. el árbol de frames se leía con una regex que exigía `id → loaderId → url`, pero los frames

@@ -205,7 +205,7 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
     <EngineContext.Provider value={value}>
       {children}
       {Platform.OS !== 'web' && (
-        <View pointerEvents="none" style={styles.hidden}>
+        <View pointerEvents="none" style={styles.behind}>
           <WebView
             ref={webRef}
             source={{ uri: GENERATOR_URL }}
@@ -224,7 +224,7 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
               readyRef.current = false;
               setReady(false);
             }}
-            style={{ width: 360, height: 640, opacity: 0.01 }}
+            style={styles.webview}
           />
         </View>
       )}
@@ -239,5 +239,20 @@ export function useEngine(): EngineContextValue {
 }
 
 const styles = StyleSheet.create({
-  hidden: { position: 'absolute', width: 1, height: 1, left: -3000, top: 0, opacity: 0.01 },
+  /**
+   * La WebView debe tener tamaño REAL y estar dentro de la pantalla: con 1x1 px
+   * o fuera de pantalla, Chromium la marca como oculta y el generador no
+   * ejecuta el render (era la causa del timeout). Queda detrás de la interfaz
+   * y casi transparente, pero con layout válido.
+   */
+  behind: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    right: 0,
+    bottom: 0,
+    opacity: 0.01,
+    zIndex: -1,
+  },
+  webview: { flex: 1, backgroundColor: 'transparent' },
 });
