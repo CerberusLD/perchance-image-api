@@ -5,9 +5,20 @@ API en Python que la respalda.
 
 **[⬇️ Descargar el APK](https://github.com/CerberusLD/perchance-image-api/releases/latest)** · [Documentación de la app](mobile/README.md) · [Referencia de la API](perchance-api.md)
 
+### Ediciones
+
+| Edición | Cuota | Descarga | `applicationId` |
+|---|---|---|---|
+| **Aether** (gratis) | 25 imágenes/día | [v1.0.0-beta](https://github.com/CerberusLD/perchance-image-api/releases/tag/v1.0.0-beta) | `com.aether.studio` |
+| **Aether Unlimited** | sin límite | [v1.0.0-unlimited](https://github.com/CerberusLD/perchance-image-api/releases/tag/v1.0.0-unlimited) | `com.aether.studio.unlimited` |
+
+Se instalan por separado: puedes tener las dos a la vez. La edición ilimitada sale del mismo
+código compilada con `EXPO_PUBLIC_UNLIMITED=1`.
+
 - App: `mobile/` — Expo SDK 58 + React Native, tema oscuro, gratis con cuota diaria.
-  El motor vive dentro del APK: una WebView oculta conduce el generador y un módulo nativo en
-  Kotlin lee el resultado por DevTools (CDP), incluso desde un iframe de otro origen.
+  El motor vive dentro del APK: una WebView a pantalla completa detrás de la interfaz conduce el
+  generador y un módulo nativo en Kotlin lee el resultado por DevTools (CDP), incluso desde un
+  iframe de otro origen.
 - API opcional: `server.py` + Camoufox headful (Xvfb) para usar el generador desde un servidor.
 - Sin marca de agua y sin exponer el proveedor en ninguna pantalla.
 

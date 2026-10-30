@@ -237,7 +237,7 @@ export default function CreateScreen() {
               <Pressable onPress={() => setShowCredits(true)} style={styles.creditPill}>
                 <Ionicons name="flash" size={13} color={colors.amber} />
                 <AppText variant="micro" color={colors.textDim}>
-                  {creditsLeft} hoy
+                  {Number.isFinite(creditsLeft) ? `${creditsLeft} hoy` : 'Ilimitado'}
                 </AppText>
               </Pressable>
             </View>
@@ -491,15 +491,19 @@ export default function CreateScreen() {
         visible={showCredits}
         onClose={() => setShowCredits(false)}
         title="Tus creaciones"
-        subtitle={`Cada día tienes ${FREE_DAILY_CREDITS} imágenes gratis. Se renuevan a medianoche.`}
+        subtitle={
+          Number.isFinite(FREE_DAILY_CREDITS)
+            ? `Cada día tienes ${FREE_DAILY_CREDITS} imágenes gratis. Se renuevan a medianoche.`
+            : 'Esta edición genera imágenes sin límite, sin anuncios y sin esperas.'
+        }
       >
         <View style={styles.creditCard}>
           <View style={{ flex: 1, gap: 6 }}>
             <AppText variant="title" style={{ fontSize: 30 }}>
-              {creditsLeft}
+              {Number.isFinite(creditsLeft) ? creditsLeft : '∞'}
             </AppText>
             <AppText variant="caption" color={colors.textDim}>
-              disponibles hoy de {creditsTotal}
+              {Number.isFinite(creditsLeft) ? `disponibles hoy de ${creditsTotal}` : 'generaciones ilimitadas'}
             </AppText>
           </View>
           <Ionicons name="flash" size={34} color={colors.amber} />
@@ -512,17 +516,21 @@ export default function CreateScreen() {
             style={{
               height: 8,
               borderRadius: 4,
-              width: `${Math.max(4, (creditsLeft / Math.max(1, creditsTotal)) * 100)}%`,
+              width: `${
+                Number.isFinite(creditsLeft) ? Math.max(4, (creditsLeft / Math.max(1, creditsTotal)) * 100) : 100
+              }%`,
             }}
           />
         </View>
-        <GHostWrap
-          text={
-            ADS_ENABLED
-              ? `Mira un anuncio corto y suma ${REWARDED_AD_CREDITS} creaciones más.`
-              : 'Muy pronto podrás sumar más creaciones viendo un anuncio corto.'
-          }
-        />
+        {Number.isFinite(creditsLeft) && (
+          <GHostWrap
+            text={
+              ADS_ENABLED
+                ? `Mira un anuncio corto y suma ${REWARDED_AD_CREDITS} creaciones más.`
+                : 'Muy pronto podrás sumar más creaciones viendo un anuncio corto.'
+            }
+          />
+        )}
         <GhostButton label="Entendido" onPress={() => setShowCredits(false)} />
       </Sheet>
     </View>

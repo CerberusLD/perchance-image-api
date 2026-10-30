@@ -32,8 +32,15 @@ export const API_FALLBACK = ENABLE_FALLBACK ? trim(FALLBACK_BASE) : null;
 /** Tiempo máximo de espera por imagen (la generación puede tardar). */
 export const REQUEST_TIMEOUT_MS = 240_000;
 
-/** Créditos gratis por día (base del modelo freemium). */
-export const FREE_DAILY_CREDITS = 25;
+/**
+ * Variante de la app. `EXPO_PUBLIC_UNLIMITED=1` compila la edición con
+ * generaciones infinitas (misma base de código, otro APK y otro package).
+ */
+export const UNLIMITED = process.env.EXPO_PUBLIC_UNLIMITED === '1';
+export const APP_VARIANT: 'free' | 'unlimited' = UNLIMITED ? 'unlimited' : 'free';
+
+/** Créditos gratis por día (base del modelo freemium). Infinito en la variante ilimitada. */
+export const FREE_DAILY_CREDITS = UNLIMITED ? Number.POSITIVE_INFINITY : 25;
 
 /** Créditos extra que otorgará un anuncio recompensado (fase anuncios). */
 export const REWARDED_AD_CREDITS = 5;

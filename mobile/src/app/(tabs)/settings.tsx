@@ -123,9 +123,13 @@ export default function SettingsScreen() {
               <Ionicons name="flash" size={20} color={colors.amber} />
             </View>
             <View style={{ flex: 1, gap: 3 }}>
-              <AppText variant="heading">{creditsLeft} creaciones hoy</AppText>
+              <AppText variant="heading">
+                {Number.isFinite(creditsLeft) ? `${creditsLeft} creaciones hoy` : 'Generaciones ilimitadas'}
+              </AppText>
               <AppText variant="micro" color={colors.textDim}>
-                Plan gratis · {creditsTotal} al día · se renuevan a medianoche
+                {Number.isFinite(creditsLeft)
+                  ? `Plan gratis · ${creditsTotal} al día · se renuevan a medianoche`
+                  : 'Edición sin límites · sin anuncios · sin esperas'}
               </AppText>
             </View>
           </View>
@@ -137,7 +141,9 @@ export default function SettingsScreen() {
               style={{
                 height: 6,
                 borderRadius: 3,
-                width: `${Math.max(4, (creditsLeft / Math.max(1, creditsTotal)) * 100)}%`,
+                width: `${
+                Number.isFinite(creditsLeft) ? Math.max(4, (creditsLeft / Math.max(1, creditsTotal)) * 100) : 100
+              }%`,
               }}
             />
           </View>
@@ -274,7 +280,13 @@ export default function SettingsScreen() {
             <Row icon="information-circle-outline" label="Versión" value={version} />
             <Divider />
             <Pressable
-              onPress={() => showToast(`Plan gratis: ${FREE_DAILY_CREDITS} imágenes al día`)}
+              onPress={() =>
+                showToast(
+                  Number.isFinite(FREE_DAILY_CREDITS)
+                    ? `Plan gratis: ${FREE_DAILY_CREDITS} imágenes al día`
+                    : 'Edición ilimitada: sin cuota y sin anuncios',
+                )
+              }
               style={styles.brandRow}
             >
               <View style={{ flex: 1, gap: 2 }}>

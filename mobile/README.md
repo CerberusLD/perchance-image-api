@@ -196,6 +196,28 @@ Si algo falla, la generación devuelve un código de etapa (`ERR:no-socket`, `ER
 `ERR:no-ui`, `ERR:no-result`) que la app traduce a un mensaje claro, y el módulo deja trazas
 `AetherEngine` en `adb logcat -s AetherEngine`.
 
+## 8.2 Ediciones (gratis e ilimitada)
+
+La misma base de código produce dos APK, gobernados por `EXPO_PUBLIC_UNLIMITED`:
+
+| Edición | Comando | Cuota | `applicationId` | Nombre |
+|---|---|---|---|---|
+| Gratis | `npx expo prebuild --clean` | 25/día | `com.aether.studio` | Aether |
+| Ilimitada | `EXPO_PUBLIC_UNLIMITED=1 npx expo prebuild --clean` | sin límite | `com.aether.studio.unlimited` | Aether Unlimited |
+
+El `applicationId` distinto lo aplica `plugins/with-engine-devtools.js`, así **las dos pueden estar
+instaladas a la vez**; el package de Java/Kotlin no cambia. El flag se incrusta en el bundle en
+tiempo de compilación (`src/lib/config.ts` → `UNLIMITED`), de modo que la edición ilimitada no
+consume cuota, no muestra el bloqueo por créditos ni el gancho de anuncios.
+
+```bash
+cd mobile
+EXPO_PUBLIC_UNLIMITED=1 npx expo prebuild --platform android --clean --no-install
+cd android && EXPO_PUBLIC_UNLIMITED=1 ./gradlew assembleRelease
+```
+
+> Hay que exportar la variable también en el paso de Gradle: ahí se genera el bundle de JS.
+
 ## 9. Freemium y anuncios
 
 - `FREE_DAILY_CREDITS` (25) y `REWARDED_AD_CREDITS` en `src/lib/config.ts`.

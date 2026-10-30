@@ -1,4 +1,9 @@
-const { withAndroidManifest, withDangerousMod, withMainApplication } = require('expo/config-plugins');
+const {
+  withAndroidManifest,
+  withAppBuildGradle,
+  withDangerousMod,
+  withMainApplication,
+} = require('expo/config-plugins');
 const fs = require('fs');
 const path = require('path');
 
@@ -45,6 +50,18 @@ module.exports = function withEngineDevtools(config) {
     }
     return cfg;
   });
+
+  // 4) Edición ilimitada: otro applicationId para convivir con la versión gratis
+  //    (el package de Java/Kotlin no cambia, así el módulo nativo sigue igual).
+  if (process.env.EXPO_PUBLIC_UNLIMITED === '1') {
+    config = withAppBuildGradle(config, (cfg) => {
+      cfg.modResults.contents = cfg.modResults.contents.replace(
+        /applicationId ['"]com\.aether\.studio['"]/,
+        "applicationId 'com.aether.studio.unlimited'",
+      );
+      return cfg;
+    });
+  }
 
   config = withMainApplication(config, (cfg) => {
     let src = cfg.modResults.contents;

@@ -9,7 +9,7 @@ import React, {
 } from 'react';
 
 import { deleteArtworkFile, setCustomEngine } from '@/lib/api';
-import { FREE_DAILY_CREDITS, REWARDED_AD_CREDITS } from '@/lib/config';
+import { FREE_DAILY_CREDITS, REWARDED_AD_CREDITS, UNLIMITED } from '@/lib/config';
 import { setHapticsEnabled } from '@/lib/haptics';
 import { readJSON, STORAGE_KEYS, writeJSON } from '@/lib/storage';
 
@@ -172,6 +172,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const creditsLeft = Math.max(0, creditsTotal - normalized.used);
 
   const consumeCredit = useCallback(() => {
+    if (UNLIMITED) return true;
     const base = creditsRef.current.date === today()
       ? creditsRef.current
       : { date: today(), used: 0, bonus: 0 };

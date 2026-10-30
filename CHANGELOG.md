@@ -1,5 +1,19 @@
 # Changelog
 
+## v1.0.0-unlimited — Aether Unlimited (Android)
+
+Edición sin cuota, construida desde el mismo código con `EXPO_PUBLIC_UNLIMITED=1`.
+
+### Añadido
+
+- **Generaciones infinitas**: no hay contador diario ni bloqueo por créditos (`FREE_DAILY_CREDITS`
+  pasa a infinito y `consumeCredit()` no descuenta).
+- Interfaz adaptada: la píldora de la cabecera, la hoja de créditos y el bloque de plan muestran
+  "Ilimitado" / "Generaciones ilimitadas" en lugar de cifras, y se oculta el gancho de anuncios.
+- Identidad propia: `Aether Unlimited`, `applicationId com.aether.studio.unlimited`, esquema
+  `aetherunlimited`, para poder convivir instalada con la versión gratis.
+- `app.config.js` que elige la variante según `EXPO_PUBLIC_UNLIMITED`.
+
 ## v1.0.0-beta — Aether para Android
 
 Primera versión pública de la app.
