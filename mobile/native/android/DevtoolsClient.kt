@@ -295,6 +295,75 @@ object DevtoolsClient {
     })()
   """.trimIndent()
 
+  /**
+   * Enfoca el campo del prompt y selecciona todo su contenido.
+   *
+   * Se elige el textarea MÁS CERCANO al botón de generar: después de la primera
+   * imagen la página muestra otros campos y "el más grande" deja de ser el del
+   * prompt, con lo que el generador acababa repitiendo el prompt anterior.
+   */
+  private val FOCUS_SELECT = """
+    (function(){
+      var tas=[].slice.call(document.querySelectorAll('textarea')).filter(function(t){
+        return t.offsetParent !== null;
+      });
+      if (!tas.length) return 'no-ta';
+      var btn=document.querySelector('#generateButtonEl') || [].slice.call(document.querySelectorAll('button')).filter(function(b){
+        return /generate|generar/i.test(b.innerText||'');
+      })[0];
+      var ta=tas[0];
+      if (btn) {
+        var rb=btn.getBoundingClientRect(), bx=rb.left+rb.width/2, by=rb.top+rb.height/2, best=1e9;
+        tas.forEach(function(t){
+          var r=t.getBoundingClientRect();
+          var dx=(r.left+r.width/2)-bx, dy=(r.top+r.height/2)-by;
+          var d=Math.sqrt(dx*dx+dy*dy);
+          if (d<best) { best=d; ta=t; }
+        });
+      } else {
+        tas.sort(function(a,b){
+          var ra=a.getBoundingClientRect(), rb2=b.getBoundingClientRect();
+          return (rb2.width*rb2.height) - (ra.width*ra.height);
+        });
+        ta=tas[0];
+      }
+      ta.setAttribute('data-aether-prompt','1');
+      try { ta.focus(); ta.setSelectionRange(0, ta.value.length); } catch(e) { return 'focus-error'; }
+      return 'focused';
+    })()
+  """.trimIndent()
+
+  /**
+   * Escribe el prompt con entrada REAL (Input.insertText): la página recibe los
+   * mismos eventos que al teclear, así no se queda con el prompt anterior.
+   * Si el valor no coincide, cae al setter nativo + eventos input/change.
+   */
+  private fun typePrompt(session: Session, frame: String, prompt: String): Boolean {
+    session.eval(frame, FOCUS_SELECT, timeoutMs = 12000)
+    session.call("Input.insertText", "{\"text\":" + jsString(prompt) + "}", 15000)
+    session.eval(frame, DISPATCH_CHANGE, timeoutMs = 8000)
+
+    var current = session.eval(frame, READ_PROMPT, timeoutMs = 12000)
+    if (current == null || current.trim() != prompt.trim()) {
+      log("typePrompt: insertText no cuadra, se usa el setter")
+      session.eval(frame, promptScript(prompt), timeoutMs = 20000)
+      current = session.eval(frame, READ_PROMPT, timeoutMs = 12000)
+    }
+    val ok = current != null && current.trim() == prompt.trim()
+    log("typePrompt: ok=" + ok + " valor=" + (current ?: "null").take(60))
+    return ok
+  }
+
+  private val DISPATCH_CHANGE = """
+    (function(){
+      var ta=document.querySelector('textarea[data-aether-prompt=\"1\"]');
+      if (!ta) return 'no-ta';
+      ta.dispatchEvent(new Event('input',{bubbles:true}));
+      ta.dispatchEvent(new Event('change',{bubbles:true}));
+      return 'ok';
+    })()
+  """.trimIndent()
+
   private fun promptScript(prompt: String): String {
     val safe = prompt.replace("\\", " ").replace("`", "'").replace("$", " ")
     return """
@@ -305,15 +374,18 @@ object DevtoolsClient {
           })[0];
           if (b) b.click();
         } catch(e){}
-        var tas=[].slice.call(document.querySelectorAll('textarea')).filter(function(t){
-          return t.offsetParent !== null;
-        });
-        if (!tas.length) return 'no-textarea';
-        tas.sort(function(a,b){
-          var ra=a.getBoundingClientRect(), rb=b.getBoundingClientRect();
-          return (rb.width*rb.height) - (ra.width*ra.height);
-        });
-        var ta=tas[0];
+        var ta=document.querySelector('textarea[data-aether-prompt="1"]');
+        if (!ta) {
+          var tas=[].slice.call(document.querySelectorAll('textarea')).filter(function(t){
+            return t.offsetParent !== null;
+          });
+          if (!tas.length) return 'no-textarea';
+          tas.sort(function(a,b){
+            var ra=a.getBoundingClientRect(), rb=b.getBoundingClientRect();
+            return (rb.width*rb.height) - (ra.width*ra.height);
+          });
+          ta=tas[0];
+        }
         ta.setAttribute('data-aether-prompt','1');
         var s=Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set;
         s.call(ta, `$safe`);
@@ -483,7 +555,7 @@ object DevtoolsClient {
       val uiFrame = findUiFrame(session, 30000) ?: run { log("improve: sin UI"); return null }
       if (!waitIdle(session, uiFrame, 15000)) log("improve: generador ocupado, se intenta igual")
 
-      session.eval(uiFrame, promptScript(prompt), timeoutMs = 20000)
+      typePrompt(session, uiFrame, prompt)
       Thread.sleep(900)
       val before = session.eval(uiFrame, READ_PROMPT) ?: prompt
 
@@ -528,47 +600,68 @@ object DevtoolsClient {
   }
 
   /**
-   * Genera una imagen. Devuelve un data URL, una URL http, o un código
-   * "ERR:<etapa>" (no-socket, no-page, no-ui, no-start, no-result).
+   * Genera una imagen. Devuelve un data URL, una URL http o "ERR:<etapa>".
+   *
+   * Si el render no llega o el resultado no corresponde al prompt pedido, se
+   * reintenta una vez recargando la página: así nunca se repite la imagen del
+   * prompt anterior por estado pegado de la página.
    */
   fun generate(prompt: String): String = synchronized(lock) {
+    var last = "ERR:no-result"
+    for (attempt in 1..2) {
+      last = generateOnce(prompt, reloadFirst = attempt > 1)
+      log("generate: intento $attempt -> ${last.take(40)}")
+      if (last.startsWith("data:image") || last.startsWith("http")) return last
+      // Errores de canal no mejoran recargando.
+      if (last == "ERR:no-socket" || last == "ERR:no-page" || last == "ERR:no-ui") return last
+      Thread.sleep(1500)
+    }
+    return last
+  }
+
+  private fun generateOnce(prompt: String, reloadFirst: Boolean): String {
     val path = pagePath() ?: return "ERR:no-socket"
     val link = connectWs(path) ?: return "ERR:no-page"
     try {
       val session = Session(link)
       prepare(session)
+
+      if (reloadFirst) {
+        log("generate: recargando la página para partir de cero")
+        session.call("Page.reload", "{}", 15000)
+        Thread.sleep(9000)
+        prepare(session)
+      }
+
       val uiFrame = findUiFrame(session) ?: return "ERR:no-ui"
       log("generate: uiFrame=$uiFrame visible=" + session.eval(uiFrame, "document.visibilityState"))
 
       val previous = existingResults(session)
       for ((fid, _) in session.frames()) session.eval(fid, MARK_OLD, timeoutMs = 6000)
-      log("generate: previas=${previous.size} (marcadas)")
 
-      // El generador sólo reacciona cuando está libre.
       if (!waitIdle(session, uiFrame, 60000)) log("generate: ocupado tras 60 s, se intenta igual")
 
-      val typed = session.eval(uiFrame, promptScript(prompt), timeoutMs = 20000)
-      if (typed != "typed") log("generate: prompt=$typed")
-      Thread.sleep(1000)
+      if (!typePrompt(session, uiFrame, prompt)) {
+        log("generate: no se pudo escribir el prompt")
+        return "ERR:no-ui"
+      }
+      Thread.sleep(800)
 
       var started = false
       for (attempt in 1..3) {
         val clicked = session.eval(uiFrame, CLICK_GENERATE, timeoutMs = 20000)
         log("generate: click $attempt -> $clicked")
         if (clicked == "clicked") {
-          // ¿reaccionó la página? (botón bloqueado, stop visible o estado ocupado)
           val deadline = now() + 8000
           while (now() < deadline) {
             Thread.sleep(1000)
-            val state = session.eval(uiFrame, READ_STATE, timeoutMs = 10000)
-            if (state == "busy") { started = true; break }
+            if (session.eval(uiFrame, READ_STATE, timeoutMs = 10000) == "busy") { started = true; break }
           }
           if (started) break
         }
         if (clicked == "disabled") waitIdle(session, uiFrame, 20000)
         Thread.sleep(1200)
       }
-      if (!started) log("generate: la página no confirmó el arranque")
       log("generate: started=$started")
 
       val deadline = now() + MAX_WAIT_MS
@@ -578,7 +671,12 @@ object DevtoolsClient {
             ?: session.eval(fid, READ_RESULT, timeoutMs = 10000)?.takeIf { !previous.contains(it) }
             ?: continue
           if (src.length < 40) continue
-          log("generate: imagen nueva en $fid (${src.take(50)})")
+
+          // ¿El render usó el prompt nuevo? Si la página repitió el anterior, se reintenta.
+          val matches = promptUsed(session, uiFrame, prompt)
+          log("generate: imagen en $fid | prompt coincide=$matches")
+          if (!matches) return "ERR:stale"
+
           val dataUrl = session.eval(fid, toDataUrlScript(src), awaitPromise = true, timeoutMs = 45000)
           if (dataUrl != null && dataUrl.startsWith("data:image")) return dataUrl
           if (src.startsWith("http")) return src
@@ -592,6 +690,24 @@ object DevtoolsClient {
     } finally {
       link.close()
     }
+  }
+
+  /** Busca el prompt en los frames de resultado (excluye el de la UI, que lo contiene por definición). */
+  private fun promptUsed(session: Session, uiFrame: String, prompt: String): Boolean {
+    val needle = prompt.trim().take(16)
+    if (needle.length < 4) return true
+    val script = """
+      (function(needle){
+        function norm(s){ return (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
+        var t=(document.body?document.body.innerText:'')+' '+(document.documentElement?document.documentElement.innerHTML:'');
+        return norm(t).indexOf(norm(needle)) >= 0 ? 'yes' : 'no';
+      })(${jsString(needle)})
+    """.trimIndent()
+    for ((fid, _) in session.frames()) {
+      if (fid == uiFrame) continue
+      if (session.eval(fid, script, timeoutMs = 8000) == "yes") return true
+    }
+    return false
   }
 
   /** Diagnóstico legible para Ajustes: dónde está el motor. */

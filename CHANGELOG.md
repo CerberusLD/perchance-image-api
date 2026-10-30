@@ -1,5 +1,23 @@
 # Changelog
 
+## v1.0.1 — corrección del prompt repetido
+
+### Corregido
+
+- **A partir de la segunda imagen se repetía el prompt de la primera.** Dos causas:
+  1. tras la primera generación la página muestra varios `textarea` y el motor escribía en *el más
+     grande*, que deja de ser el campo del prompt, así que el generador nunca recibía el texto nuevo;
+  2. el texto se inyectaba con el setter del prototipo y eventos sintéticos, que no siempre
+     actualizan el estado interno de la página.
+
+  Ahora el campo se elige por **cercanía al botón de generar**, se escribe con **entrada real**
+  (`Input.insertText` tras seleccionar todo), se verifica el valor y, después del render, se
+  comprueba que el prompt aparece en el **frame de resultado**; si no coincide, se reintenta una vez
+  recargando la página (`ERR:stale`).
+
+  Validado en navegador real: dos prompts distintos seguidos, el prompt correcto presente en el
+  frame de resultado en ambos casos y ambas imágenes distintas.
+
 ## v1.0.0-unlimited — Aether Unlimited (Android)
 
 Edición sin cuota, construida desde el mismo código con `EXPO_PUBLIC_UNLIMITED=1`.

@@ -59,6 +59,8 @@ export const engineErrorMessage = (code: string): string => {
       return 'El motor no terminó de cargar. Reintenta en unos segundos.';
     case 'no-result':
       return 'El render no llegó a completarse. Inténtalo otra vez.';
+    case 'stale':
+      return 'El motor no aplicó la nueva descripción. Reintenta la generación.';
     case 'busy':
       return 'El motor está ocupado con otra imagen. Espera un momento.';
     case 'engine-unavailable':

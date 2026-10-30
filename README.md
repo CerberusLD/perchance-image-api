@@ -9,8 +9,8 @@ API en Python que la respalda.
 
 | Edición | Cuota | Descarga | `applicationId` |
 |---|---|---|---|
-| **Aether** (gratis) | 25 imágenes/día | [v1.0.0-beta](https://github.com/CerberusLD/perchance-image-api/releases/tag/v1.0.0-beta) | `com.aether.studio` |
-| **Aether Unlimited** | sin límite | [v1.0.0-unlimited](https://github.com/CerberusLD/perchance-image-api/releases/tag/v1.0.0-unlimited) | `com.aether.studio.unlimited` |
+| **Aether** (gratis) | 25 imágenes/día | [v1.0.1](https://github.com/CerberusLD/perchance-image-api/releases/tag/v1.0.1) | `com.aether.studio` |
+| **Aether Unlimited** | sin límite | [v1.0.1-unlimited](https://github.com/CerberusLD/perchance-image-api/releases/tag/v1.0.1-unlimited) | `com.aether.studio.unlimited` |
 
 Se instalan por separado: puedes tener las dos a la vez. La edición ilimitada sale del mismo
 código compilada con `EXPO_PUBLIC_UNLIMITED=1`.

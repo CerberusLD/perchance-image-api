@@ -48,6 +48,7 @@ export type EngineErrorCode =
   | 'no-page'
   | 'no-ui'
   | 'no-result'
+  | 'stale'
   | 'busy'
   | 'engine-unavailable'
   | 'unexpected';
@@ -67,7 +68,7 @@ type EngineContextValue = {
 
 const EngineContext = createContext<EngineContextValue | null>(null);
 
-const KNOWN: EngineErrorCode[] = ['no-socket', 'no-page', 'no-ui', 'no-result', 'busy'];
+const KNOWN: EngineErrorCode[] = ['no-socket', 'no-page', 'no-ui', 'no-result', 'stale', 'busy'];
 
 export function EngineProvider({ children }: { children: React.ReactNode }) {
   const webRef = useRef<any>(null);
