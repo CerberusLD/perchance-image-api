@@ -146,12 +146,42 @@ Variables de compilación opcionales (`src/lib/config.ts`):
 | `EXPO_PUBLIC_API_BASE` | motor HTTP por defecto |
 | `EXPO_PUBLIC_ENABLE_FALLBACK` | `true` habilita el endpoint secundario |
 
-## 8. Mejora de prompt (🧠)
+## 8. Mejora de prompt (🧠) y exclusión mutua
 
-El botón **Mejorar** del campo de texto hace lo mismo que el 🧠 del generador:
-escribe el prompt en su campo y pulsa `.ai-suggest-btn` por CDP, esperando a que cambie el
-textarea. Si no hay respuesta en 25 s, aplica `enhancePrompt()` (local) añadiendo luz,
-detalle, composición y el matiz del estilo. El *toast* indica el origen.
+El botón **Mejorar** del campo de texto hace lo mismo que el 🧠 del generador: escribe el prompt
+en su campo y pulsa `.ai-suggest-btn` por CDP, esperando a que cambie el textarea. Si no hay
+respuesta en 30 s, aplica `enhancePrompt()` (local). El *toast* indica el origen.
+
+Claves para que no rompa la generación (esto causaba el timeout al añadir la función):
+
+- generar, mejorar y diagnosticar pasan por **una sola cola** en JS y por un `synchronized` en
+  Kotlin: nunca hay dos sesiones CDP a la vez;
+- al terminar, `improve()` espera a que el generador vuelva a estar **libre** (el 🧠 puede
+  disparar un render), y `generate()` vuelve a esperar hasta 60 s antes de pulsar;
+- el clic se verifica: se comprueba que el botón quedó bloqueado o que hay estado ocupado. Si no
+  reacciona, se reintenta hasta 3 veces (un clic sobre un botón deshabilitado se perdía en
+  silencio y acababa en espera de 4 minutos).
+
+## 8.1 Diagnóstico del motor
+
+Ajustes → Servicio → **Diagnóstico del motor** devuelve el estado real del motor en el teléfono:
+
+```
+socket: webview_devtools_remote_<pid>
+debugging: on
+target: /devtools/page/…
+frames: 3
+ · https://perchance.org/ai-text-to-image-generator
+ · about:blank
+ · https://<hash>.perchance.org/ai-text-to-image-generator
+ui: <frameId>
+estado: idle
+probe: ui:1
+```
+
+Si algo falla, la generación devuelve un código de etapa (`ERR:no-socket`, `ERR:no-page`,
+`ERR:no-ui`, `ERR:no-result`) que la app traduce a un mensaje claro, y el módulo deja trazas
+`AetherEngine` en `adb logcat -s AetherEngine`.
 
 ## 9. Freemium y anuncios
 
@@ -163,7 +193,11 @@ detalle, composición y el matiz del estilo. El *toast* indica el origen.
 
 ## 10. Límites y notas
 
-- **Tiempos**: 15–60 s por imagen según red y cola del generador; timeout 240 s.
+- **Tiempos**: 15–60 s por imagen según red y cola del generador; espera máxima 150 s.
+- **Socket CDP**: el nombre se deduce del pid (`webview_devtools_remote_<pid>`). Desde Android 10
+  la app **no puede leer `/proc/net/unix`** (`EACCES`), así que no se depende de él; sólo es
+  respaldo. El inspector de WebView se activa en `MainApplication.onCreate`, antes de crear
+  ninguna WebView (requisito de Android).
 - **Semilla**: el generador no siempre la respeta; se guarda con la imagen cuando se fija.
 - **Resolución**: el generador limita el lado mayor (~768–1024 px) y conserva la proporción.
 - **Cuota**: cancelar una generación consume el crédito (la petición ya salió).

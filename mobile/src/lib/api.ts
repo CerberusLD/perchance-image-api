@@ -49,6 +49,25 @@ export const friendlyError = (kind: ApiErrorKind): string => {
   }
 };
 
+/** Texto para cada etapa de fallo del motor embebido (sin revelar el proveedor). */
+export const engineErrorMessage = (code: string): string => {
+  switch (code) {
+    case 'no-socket':
+    case 'no-page':
+      return 'El motor todavía se está iniciando. Espera unos segundos y reintenta.';
+    case 'no-ui':
+      return 'El motor no terminó de cargar. Reintenta en unos segundos.';
+    case 'no-result':
+      return 'El render no llegó a completarse. Inténtalo otra vez.';
+    case 'busy':
+      return 'El motor está ocupado con otra imagen. Espera un momento.';
+    case 'engine-unavailable':
+      return 'El motor no está disponible en esta versión.';
+    default:
+      return 'Algo falló en el render. Suele resolverse reintentando.';
+  }
+};
+
 let customBase: string | null = null;
 
 /** Permite apuntar la app a un motor propio sin recompilar. */

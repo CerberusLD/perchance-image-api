@@ -7,21 +7,26 @@ import android.webkit.WebView
 import org.json.JSONObject
 
 /**
- * Motor real del generador de Perchance manejado desde la app vía CDP (DevTools).
+ * Motor del generador manejado desde la app vía CDP (DevTools).
  *
- * Flujo (el mismo de un cliente de escritorio, pero dentro del móvil):
+ * Flujo:
  *   1. La WebView oculta carga https://perchance.org/ai-text-to-image-generator
- *   2. Se localizan los frames internos: UI del generador y embed de generación.
- *   3. Se escribe el prompt y se pulsa "generate" por JS en el frame de la UI.
- *   4. Se sondea el frame del embed hasta que aparece #resultImgEl.
- *   5. Se convierte la imagen en data URL dentro de ese frame y se devuelve.
+ *   2. Se localiza el frame de la UI (campo visible + botón de generar).
+ *   3. Se espera a que el generador esté libre, se escribe el prompt y se pulsa generate.
+ *   4. Se comprueba que el render arrancó de verdad (botón bloqueado / estado ocupado).
+ *   5. Se sondea TODOS los frames hasta que aparece una imagen nueva (#resultImgEl).
+ *   6. Se convierte en data URL dentro del propio frame y se devuelve.
  *
- * Cero servidores: todo ocurre en la WebView del dispositivo.
+ * Nunca devuelve `null` sin explicar el motivo: usa códigos "ERR:<etapa>" para que
+ * la interfaz pueda decir qué pasó y el usuario reintente sin adivinar.
  */
 object DevtoolsClient {
 
-  private const val POLL_MS = 3000L
-  private const val MAX_WAIT_MS = 240000L
+  private const val MAX_WAIT_MS = 150000L
+  private const val POLL_MS = 2500L
+  private const val TAG = "AetherEngine"
+
+  private val lock = Any()
 
   private class Link(val socket: LocalSocket) {
     val input = socket.inputStream
@@ -53,80 +58,104 @@ object DevtoolsClient {
       output.flush()
     }
 
+    /** Devuelve null si se cierra el socket o expira el soTimeout. */
     fun readText(): String? {
-      val sb = StringBuilder()
-      while (true) {
-        val b0 = input.read()
-        if (b0 < 0) return null
-        val b1 = input.read()
-        if (b1 < 0) return null
-        val opcode = b0 and 0x0F
-        val masked = (b1 and 0x80) != 0
-        var len = (b1 and 0x7F).toLong()
-        if (len == 126L) len = ((input.read() shl 8) or input.read()).toLong()
-        else if (len == 127L) {
-          len = 0
-          for (i in 0 until 8) len = (len shl 8) or input.read().toLong()
+      return try {
+        val sb = StringBuilder()
+        while (true) {
+          val b0 = input.read()
+          if (b0 < 0) return null
+          val b1 = input.read()
+          if (b1 < 0) return null
+          val opcode = b0 and 0x0F
+          val masked = (b1 and 0x80) != 0
+          var len = (b1 and 0x7F).toLong()
+          if (len == 126L) len = ((input.read() shl 8) or input.read()).toLong()
+          else if (len == 127L) {
+            len = 0
+            for (i in 0 until 8) len = (len shl 8) or input.read().toLong()
+          }
+          val mask = if (masked) ByteArray(4) { input.read().toByte() } else null
+          val data = ByteArray(len.toInt())
+          var read = 0
+          while (read < data.size) {
+            val r = input.read(data, read, data.size - read)
+            if (r < 0) return null
+            read += r
+          }
+          if (mask != null) for (i in data.indices) data[i] = (data[i].toInt() xor mask[i % 4].toInt()).toByte()
+          if (opcode == 0x8) return null
+          sb.append(String(data, Charsets.UTF_8))
+          if ((b0 and 0x80) != 0) return sb.toString()
         }
-        val mask = if (masked) ByteArray(4) { input.read().toByte() } else null
-        val data = ByteArray(len.toInt())
-        var read = 0
-        while (read < data.size) {
-          val r = input.read(data, read, data.size - read)
-          if (r < 0) return null
-          read += r
-        }
-        if (mask != null) for (i in data.indices) data[i] = (data[i].toInt() xor mask[i % 4].toInt()).toByte()
-        if (opcode == 0x8) return null
-        sb.append(String(data, Charsets.UTF_8))
-        if ((b0 and 0x80) != 0) return sb.toString()
+        null
+      } catch (e: Exception) {
+        null
       }
     }
   }
 
   private fun log(msg: String) {
-    try { android.util.Log.i("AetherEngine", msg) } catch (e: Exception) {}
+    try { android.util.Log.i(TAG, msg) } catch (e: Exception) {}
   }
 
-  private fun socketName(): String? = try {
+  private fun now() = System.currentTimeMillis()
+
+  /** Nombres candidatos del socket de la WebView propia (sin depender de /proc). */
+  private fun candidates(): List<String> {
     val pid = android.os.Process.myPid()
-    val names = java.io.File("/proc/net/unix").readLines()
-      .map { it.trim().split(Regex("\\s+")).last() }
-      .filter { it.contains("webview_devtools_remote") }
-    (names.firstOrNull { it.endsWith("webview_devtools_remote_$pid") }
-      ?: names.firstOrNull())?.removePrefix("@")
+    val out = ArrayList<String>()
+    out.add("webview_devtools_remote_$pid")
+    for (path in listOf("/proc/self/net/unix", "/proc/net/unix")) {
+      try {
+        java.io.File(path).readLines().forEach { line ->
+          val parts = line.trim().split(Regex("\\s+"))
+          val name = parts.lastOrNull() ?: return@forEach
+          if (name.contains("webview_devtools_remote")) {
+            val clean = name.removePrefix("@")
+            if (!out.contains(clean)) out.add(clean)
+          }
+        }
+      } catch (e: Exception) {
+        // Android 10+ bloquea /proc/net por SELinux: se ignora y se usa el pid.
+      }
+    }
+    return out
+  }
+
+  private fun connectTo(name: String): LocalSocket? = try {
+    val s = LocalSocket()
+    s.connect(LocalSocketAddress(name, LocalSocketAddress.Namespace.ABSTRACT))
+    s.soTimeout = 20000
+    s
   } catch (e: Exception) {
-    log("socketName error: ${e.message}")
     null
   }
 
   private fun open(): LocalSocket? {
-    val name = socketName() ?: return null
-    return try {
-      val s = LocalSocket()
-      s.connect(LocalSocketAddress(name, LocalSocketAddress.Namespace.ABSTRACT))
-      s.soTimeout = 20000
-      s
-    } catch (e: Exception) {
-      null
+    for (name in candidates()) {
+      connectTo(name)?.let {
+        log("open: socket $name")
+        return it
+      }
     }
+    log("open: sin socket (pid=${android.os.Process.myPid()})")
+    return null
   }
 
-  /** /json/list por HTTP plano para descubrir la ruta del WebSocket de la página. */
+  /** /json/list por HTTP plano sobre el socket abstracto. */
   private fun pagePath(): String? {
-    var attempt = 0
-    while (attempt < 8) {
-      attempt += 1
+    for (attempt in 1..8) {
       val path = pagePathOnce()
       if (path != null) return path
-      Thread.sleep(1500)
+      Thread.sleep(1200)
     }
-    log("pagePath: sin respuesta tras $attempt intentos")
+    log("pagePath: sin target tras 8 intentos")
     return null
   }
 
   private fun pagePathOnce(): String? {
-    val s = open() ?: run { log("pagePath: sin socket"); return null }
+    val s = open() ?: return null
     return try {
       val req = "GET /json/list HTTP/1.1\r\nHost: localhost:9222\r\nConnection: close\r\n\r\n"
       s.outputStream.write(req.toByteArray())
@@ -135,7 +164,7 @@ object DevtoolsClient {
       val n = s.inputStream.read(buf)
       val body = String(buf, 0, maxOf(n, 0))
       val hit = Regex("/devtools/page/[A-Fa-f0-9]+").find(body)?.value
-      if (hit == null) log("pagePath: respuesta sin target (${body.take(60)})")
+      if (hit == null) log("pagePath: respuesta sin target (${body.take(80)})")
       hit
     } catch (e: Exception) {
       log("pagePath error: ${e.message}")
@@ -156,7 +185,11 @@ object DevtoolsClient {
       val buf = ByteArray(2048)
       val n = s.inputStream.read(buf)
       val resp = String(buf, 0, maxOf(n, 0))
-      if (!resp.contains("101")) { try { s.close() } catch (e: Exception) {}; return null }
+      if (!resp.contains("101")) {
+        log("ws: handshake ${resp.take(60)}")
+        try { s.close() } catch (e: Exception) {}
+        return null
+      }
       Link(s)
     } catch (e: Exception) {
       null
@@ -173,8 +206,8 @@ object DevtoolsClient {
       id += 1
       val myId = id
       link.sendText("{\"id\":$myId,\"method\":\"$method\",\"params\":$params}")
-      val deadline = System.currentTimeMillis() + timeoutMs
-      while (System.currentTimeMillis() < deadline) {
+      val deadline = now() + timeoutMs
+      while (now() < deadline) {
         val raw = link.readText() ?: return null
         val obj = try { JSONObject(raw) } catch (e: Exception) { continue }
         if (obj.optInt("id", -1) == myId) return obj
@@ -183,7 +216,10 @@ object DevtoolsClient {
     }
 
     fun eval(frameId: String, script: String, awaitPromise: Boolean = false, timeoutMs: Int = 25000): String? {
-      val world = call("Page.createIsolatedWorld", "{\"frameId\":\"$frameId\",\"worldName\":\"aether\"}") ?: return null
+      val world = call(
+        "Page.createIsolatedWorld",
+        "{\"frameId\":\"$frameId\",\"worldName\":\"aether\"}"
+      ) ?: return null
       val ctx = world.optJSONObject("result")?.optInt("executionContextId", -1) ?: -1
       if (ctx < 0) return null
       val params = buildString {
@@ -225,8 +261,42 @@ object DevtoolsClient {
     }
   }
 
+  // ---------------------------------------------------------------- scripts
+
+  private val PROBE_UI = """
+    (function(){
+      var tas=[].slice.call(document.querySelectorAll('textarea')).filter(function(t){
+        return t.offsetParent !== null;
+      });
+      if (!tas.length) return 'none';
+      var hasBtn=[].slice.call(document.querySelectorAll('button')).some(function(b){
+        return /generate|generar/i.test(b.innerText||'') || b.id==='generateButtonEl';
+      });
+      var hasSuggest=!!document.querySelector('.ai-suggest-btn');
+      if (!hasBtn && !hasSuggest) return 'no-button';
+      return 'ui:' + tas.length;
+    })()
+  """.trimIndent()
+
+  /** 'idle' | 'busy' | 'no-button' — el generador sólo acepta clics cuando está libre. */
+  private val READ_STATE = """
+    (function(){
+      var byId=document.querySelector('#generateButtonEl');
+      var btn=byId || [].slice.call(document.querySelectorAll('button')).filter(function(b){
+        return /generate|generar/i.test(b.innerText||'');
+      })[0] || null;
+      if (!btn) return 'no-button';
+      var stop=document.querySelector('.stop-btn, #stopButtonEl, [data-name=stop]');
+      if (stop && stop.offsetParent !== null) return 'busy';
+      if (btn.disabled) return 'busy';
+      var cls=(typeof btn.className==='string'?btn.className:'');
+      if (/\b(busy|loading|generating)\b/i.test(cls)) return 'busy';
+      return 'idle';
+    })()
+  """.trimIndent()
+
   private fun promptScript(prompt: String): String {
-    val safe = prompt.replace("\\", " ").replace("`", "'").replace("\$", " ")
+    val safe = prompt.replace("\\", " ").replace("`", "'").replace("$", " ")
     return """
       (function(){
         try {
@@ -249,34 +319,17 @@ object DevtoolsClient {
         s.call(ta, `$safe`);
         ta.dispatchEvent(new Event('input',{bubbles:true}));
         ta.dispatchEvent(new Event('change',{bubbles:true}));
+        ta.blur();
         return 'typed';
       })()
     """.trimIndent()
   }
 
-  /** Señal de que el frame es la UI real: campo visible + botón de generar. */
-  private val PROBE_UI = """
-    (function(){
-      var tas=[].slice.call(document.querySelectorAll('textarea')).filter(function(t){
-        return t.offsetParent !== null;
-      });
-      if (!tas.length) return 'none';
-      var hasBtn=[].slice.call(document.querySelectorAll('button')).some(function(b){
-        return /generate|generar/i.test(b.innerText||'');
-      });
-      var hasSuggest=!!document.querySelector('.ai-suggest-btn');
-      if (!hasBtn && !hasSuggest) return 'no-button';
-      return 'ui:' + tas.length;
-    })()
-  """.trimIndent()
-
   private val CLICK_GENERATE = """
     (function(){
       var cands=[];
-      var byId=document.querySelector('#generateButtonEl');
-      if (byId) cands.push(byId);
-      var byName=document.querySelector('[data-name=generate]');
-      if (byName) cands.push(byName);
+      var byId=document.querySelector('#generateButtonEl'); if(byId) cands.push(byId);
+      var byName=document.querySelector('[data-name=generate]'); if(byName) cands.push(byName);
       [].slice.call(document.querySelectorAll('button')).forEach(function(b){
         if (/generate|generar/i.test(b.innerText||'')) cands.push(b);
       });
@@ -284,28 +337,9 @@ object DevtoolsClient {
       var b=cands[0];
       if (b.disabled) return 'disabled';
       try { b.click(); } catch (e) {
-        try { b.dispatchEvent(new MouseEvent('click', {bubbles:true})); } catch (e2) { return 'click-error'; }
+        try { b.dispatchEvent(new MouseEvent('click',{bubbles:true})); } catch (e2) { return 'click-error'; }
       }
       return 'clicked';
-    })()
-  """.trimIndent()
-
-  private val READ_RESULT = """
-    (function(){
-      var im=document.querySelector('#resultImgEl');
-      if (im && im.src && im.src.length > 40) return im.src;
-      return null;
-    })()
-  """.trimIndent()
-
-  private fun toDataUrlScript(src: String): String = """
-    (async function(){
-      try {
-        var r=await fetch(${jsString(src)});
-        var b=await r.blob();
-        return await new Promise(function(res){ var f=new FileReader();
-          f.onloadend=function(){ res(f.result); }; f.readAsDataURL(b); });
-      } catch(e) { return null; }
     })()
   """.trimIndent()
 
@@ -327,7 +361,7 @@ object DevtoolsClient {
 
   private val READ_PROMPT = """
     (function(){
-      var ta=document.querySelector('textarea[data-aether-prompt=\"1\"]');
+      var ta=document.querySelector('textarea[data-aether-prompt="1"]');
       if (!ta) {
         var tas=[].slice.call(document.querySelectorAll('textarea')).filter(function(t){
           return t.offsetParent !== null;
@@ -343,123 +377,242 @@ object DevtoolsClient {
     })()
   """.trimIndent()
 
+  private val READ_RESULT = """
+    (function(){
+      var im=document.querySelector('#resultImgEl');
+      if (im && im.src && im.src.length > 40) return im.src;
+      return null;
+    })()
+  """.trimIndent()
+
+  /** Marca la imagen que ya estaba: así no se devuelve una vieja ni se descarta una nueva con la misma URL. */
+  private val MARK_OLD = """
+    (function(){
+      var im=document.querySelector('#resultImgEl');
+      if (im) { im.setAttribute('data-aether-old','1'); return 'marked'; }
+      return 'none';
+    })()
+  """.trimIndent()
+
+  private val READ_NEW = """
+    (function(){
+      var im=document.querySelector('#resultImgEl');
+      if (!im || !im.src || im.src.length < 40) return null;
+      if (im.getAttribute('data-aether-old') === '1') return null;
+      return im.src;
+    })()
+  """.trimIndent()
+
+  private fun toDataUrlScript(src: String): String = """
+    (async function(){
+      try {
+        var r=await fetch(${jsString(src)});
+        var b=await r.blob();
+        return await new Promise(function(res){ var f=new FileReader();
+          f.onloadend=function(){ res(f.result); }; f.readAsDataURL(b); });
+      } catch(e) { return null; }
+    })()
+  """.trimIndent()
+
+  // ------------------------------------------------------------- utilidades
+
+  /** Frame de la UI real: el que tiene campo visible y botón de generar. */
+  private fun findUiFrame(session: Session, budgetMs: Int = 45000): String? {
+    val deadline = now() + budgetMs
+    while (now() < deadline) {
+      for ((fid, url) in session.frames()) {
+        if (!url.contains("ai-text-to-image-generator") && !url.contains("perchance.org")) continue
+        val probe = session.eval(fid, PROBE_UI, timeoutMs = 12000)
+        if (probe != null && probe.startsWith("ui:")) return fid
+      }
+      Thread.sleep(1500)
+    }
+    return null
+  }
+
+  /** true cuando el generador está libre y acepta un nuevo trabajo. */
+  private fun waitIdle(session: Session, frame: String, budgetMs: Int): Boolean {
+    val deadline = now() + budgetMs
+    while (now() < deadline) {
+      val state = session.eval(frame, READ_STATE, timeoutMs = 12000)
+      if (state == "idle") return true
+      if (state == null) return false
+      Thread.sleep(1200)
+    }
+    return false
+  }
+
+  /** Imágenes que ya estaban en la página antes de generar (para no devolver una vieja). */
+  private fun existingResults(session: Session): Set<String> {
+    val out = HashSet<String>()
+    for ((fid, _) in session.frames()) {
+      val src = session.eval(fid, READ_RESULT, timeoutMs = 8000) ?: continue
+      if (src.length > 40) out.add(src)
+    }
+    return out
+  }
+
+  // ---------------------------------------------------------------- motor
+
   /**
-   * Mejora un prompt con el botón 🧠 del propio generador.
-   * Devuelve el texto mejorado o null.
+   * Mejora el prompt con el botón 🧠 del propio generador y deja la página libre:
+   * al terminar espera a que el generador vuelva a estar disponible, de modo que
+   * el siguiente `generate()` nunca se encuentre el botón bloqueado.
    */
-  fun improve(prompt: String): String? {
-    val path = pagePath() ?: return null
-    val link = connectWs(path) ?: return null
+  fun improve(prompt: String): String? = synchronized(lock) {
+    val path = pagePath() ?: run { log("improve: sin socket"); return null }
+    val link = connectWs(path) ?: run { log("improve: sin websocket"); return null }
     try {
       val session = Session(link)
-
-      var uiFrame: String? = null
-      var attempts = 0
-      while (uiFrame == null && attempts < 15) {
-        attempts += 1
-        for ((fid, url) in session.frames()) {
-          if (!url.contains("ai-text-to-image-generator")) continue
-          val probe = session.eval(fid, PROBE_UI, timeoutMs = 12000)
-          if (probe != null && probe.startsWith("ui:")) { uiFrame = fid; break }
-        }
-        if (uiFrame == null) Thread.sleep(2000)
-      }
-      if (uiFrame == null) return null
+      val uiFrame = findUiFrame(session, 30000) ?: run { log("improve: sin UI"); return null }
+      if (!waitIdle(session, uiFrame, 15000)) log("improve: generador ocupado, se intenta igual")
 
       session.eval(uiFrame, promptScript(prompt), timeoutMs = 20000)
       Thread.sleep(900)
       val before = session.eval(uiFrame, READ_PROMPT) ?: prompt
+
       var clicked = session.eval(uiFrame, CLICK_SUGGEST, timeoutMs = 20000)
       if (clicked != "clicked") {
-        // el botón puede vivir en otro frame de la página
         for ((fid, _) in session.frames()) {
           if (fid == uiFrame) continue
-          val r = session.eval(fid, CLICK_SUGGEST, timeoutMs = 12000)
+          val r = session.eval(fid, CLICK_SUGGEST, timeoutMs = 10000)
           if (r == "clicked") { clicked = r; break }
         }
       }
-      if (clicked != "clicked") return null
+      if (clicked != "clicked") {
+        log("improve: sin botón 🧠")
+        return null
+      }
 
-      val started = System.currentTimeMillis()
-      while (System.currentTimeMillis() - started < 25000) {
-        Thread.sleep(1500)
-        val now = session.eval(uiFrame, READ_PROMPT, timeoutMs = 15000) ?: continue
-        if (now.trim().isNotEmpty() && now != before && now.length > before.length / 2) {
-          if (now != before) return now
+      val deadline = now() + 30000
+      var improved: String? = null
+      while (now() < deadline) {
+        Thread.sleep(1200)
+        val text = session.eval(uiFrame, READ_PROMPT, timeoutMs = 12000) ?: continue
+        if (text.trim().isNotEmpty() && text.trim() != before.trim() && text.trim().length > before.trim().length / 2 + 2) {
+          improved = text
+          break
         }
       }
-      return null
+      if (improved == null) log("improve: sin texto nuevo")
+
+      // Nunca dejar la página ocupada: el 🧠 puede disparar un render.
+      if (!waitIdle(session, uiFrame, 20000)) {
+        log("improve: el generador sigue ocupado al salir")
+      } else {
+        log("improve: generador libre")
+      }
+      improved
     } catch (e: Exception) {
-      return null
+      log("improve error: ${e.message}")
+      null
     } finally {
       link.close()
     }
   }
 
   /**
-   * Genera con el generador real y devuelve un data URL base64, o una URL http
-   * si el binario no se pudo leer dentro del frame. `null` si no hubo resultado.
+   * Genera una imagen. Devuelve un data URL, una URL http, o un código
+   * "ERR:<etapa>" (no-socket, no-page, no-ui, no-start, no-result).
    */
-  fun generate(prompt: String): String? {
-    log("generate: inicio")
-    val path = pagePath() ?: run { log("generate: sin pagePath"); return null }
-    log("generate: target $path")
-    val link = connectWs(path) ?: run { log("generate: handshake fallido"); return null }
+  fun generate(prompt: String): String = synchronized(lock) {
+    val path = pagePath() ?: return "ERR:no-socket"
+    val link = connectWs(path) ?: return "ERR:no-page"
     try {
       val session = Session(link)
-      val started = System.currentTimeMillis()
+      val uiFrame = findUiFrame(session) ?: return "ERR:no-ui"
+      log("generate: uiFrame=$uiFrame")
 
-      // 1) Frame de la UI del generador: el que tiene campo visible Y botón de generar
-      //    (la página externa también tiene textareas, pero ocultos y sin botón)
-      var uiFrame: String? = null
-      var attempts = 0
-      while (uiFrame == null && attempts < 15) {
-        attempts += 1
-        for ((fid, url) in session.frames()) {
-          if (!url.contains("ai-text-to-image-generator")) continue
-          val probe = session.eval(fid, PROBE_UI, timeoutMs = 12000)
-          if (probe != null && probe.startsWith("ui:")) { uiFrame = fid; break }
+      val previous = existingResults(session)
+      for ((fid, _) in session.frames()) session.eval(fid, MARK_OLD, timeoutMs = 6000)
+      log("generate: previas=${previous.size} (marcadas)")
+
+      // El generador sólo reacciona cuando está libre.
+      if (!waitIdle(session, uiFrame, 60000)) log("generate: ocupado tras 60 s, se intenta igual")
+
+      val typed = session.eval(uiFrame, promptScript(prompt), timeoutMs = 20000)
+      if (typed != "typed") log("generate: prompt=$typed")
+      Thread.sleep(1000)
+
+      var started = false
+      for (attempt in 1..3) {
+        val clicked = session.eval(uiFrame, CLICK_GENERATE, timeoutMs = 20000)
+        log("generate: click $attempt -> $clicked")
+        if (clicked == "clicked") {
+          // ¿reaccionó la página? (botón bloqueado, stop visible o estado ocupado)
+          val deadline = now() + 8000
+          while (now() < deadline) {
+            Thread.sleep(1000)
+            val state = session.eval(uiFrame, READ_STATE, timeoutMs = 10000)
+            if (state == "busy") { started = true; break }
+          }
+          if (started) break
         }
-        if (uiFrame == null) Thread.sleep(2000)
+        if (clicked == "disabled") waitIdle(session, uiFrame, 20000)
+        Thread.sleep(1200)
       }
-      log("generate: frames=" + session.frames().size + " uiFrame=" + (uiFrame ?: "null"))
-      if (uiFrame == null) return null
+      if (!started) log("generate: la página no confirmó el arranque")
+      log("generate: started=$started")
 
-      // 2) Prompt + clic en generar
-      session.eval(uiFrame, promptScript(prompt), timeoutMs = 20000)
-      Thread.sleep(1500)
-      log("generate: tipo=" + session.eval(uiFrame, PROBE_UI))
-      var clicked = session.eval(uiFrame, CLICK_GENERATE, timeoutMs = 20000)
-      log("generate: click=" + clicked)
-      if (clicked != "clicked") {
-        Thread.sleep(2500)
-        session.eval(uiFrame, CLICK_GENERATE, timeoutMs = 20000)
-      }
-
-      // 3) Esperar la imagen: se busca en TODOS los frames (el embed se crea al generar)
-      var reclicked = false
-      while (System.currentTimeMillis() - started < MAX_WAIT_MS) {
+      val deadline = now() + MAX_WAIT_MS
+      while (now() < deadline) {
         for ((fid, _) in session.frames()) {
-          val src = session.eval(fid, READ_RESULT, timeoutMs = 12000) ?: continue
+          val src = session.eval(fid, READ_NEW, timeoutMs = 10000)
+            ?: session.eval(fid, READ_RESULT, timeoutMs = 10000)?.takeIf { !previous.contains(it) }
+            ?: continue
           if (src.length < 40) continue
-          log("generate: resultado en $fid (${src.take(60)})")
+          log("generate: imagen nueva en $fid (${src.take(50)})")
           val dataUrl = session.eval(fid, toDataUrlScript(src), awaitPromise = true, timeoutMs = 45000)
           if (dataUrl != null && dataUrl.startsWith("data:image")) return dataUrl
           if (src.startsWith("http")) return src
         }
-        // Si no aparece nada en 25 s, se reintenta el clic (a veces el primero se pierde)
-        if (!reclicked && System.currentTimeMillis() - started > 25000) {
-          reclicked = true
-          session.eval(uiFrame, CLICK_GENERATE, timeoutMs = 15000)
-        }
         Thread.sleep(POLL_MS)
       }
-      return null
+      return "ERR:no-result"
     } catch (e: Exception) {
-      return null
+      log("generate error: ${e.message}")
+      return "ERR:no-result"
     } finally {
       link.close()
     }
+  }
+
+  /** Diagnóstico legible para Ajustes: dónde está el motor. */
+  fun diagnose(): String {
+    val sb = StringBuilder()
+    val names = candidates()
+    sb.append("socket: ").append(names.firstOrNull() ?: "?").append('\n')
+    sb.append("debugging: ").append(if (isDebuggingEnabled()) "on" else "off").append('\n')
+    val path = pagePath()
+    sb.append("target: ").append(path ?: "no encontrado").append('\n')
+    if (path == null) return sb.toString()
+    val link = connectWs(path) ?: run { sb.append("websocket: falló"); return sb.toString() }
+    try {
+      val session = Session(link)
+      val frames = session.frames()
+      sb.append("frames: ").append(frames.size).append('\n')
+      for ((fid, url) in frames) sb.append(" · ").append(url.take(60)).append('\n')
+      val ui = findUiFrame(session, 12000)
+      sb.append("ui: ").append(ui ?: "no detectada").append('\n')
+      if (ui != null) {
+        sb.append("estado: ").append(session.eval(ui, READ_STATE) ?: "?").append('\n')
+        sb.append("probe: ").append(session.eval(ui, PROBE_UI) ?: "?")
+      }
+    } catch (e: Exception) {
+      sb.append("error: ").append(e.message)
+    } finally {
+      link.close()
+    }
+    return sb.toString()
+  }
+
+  private fun isDebuggingEnabled(): Boolean = try {
+    val cls = WebView::class.java
+    val f = cls.getDeclaredField("sDebuggingEnabled")
+    f.isAccessible = true
+    f.getBoolean(null)
+  } catch (e: Exception) {
+    true
   }
 
   fun enableDebugging() {

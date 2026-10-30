@@ -13,11 +13,14 @@ import { WebView } from 'react-native-webview';
 import { enhancePrompt } from '@/lib/prompts';
 
 /**
- * Motor embebido: WebView invisible que ejecuta el generador REAL de Perchance
+ * Motor embebido: WebView invisible que ejecuta el generador real
  * (perchance.org/ai-text-to-image-generator).
  *
  * El resultado aparece dentro de un iframe de otro origen, así que lo lee un
  * módulo nativo (Kotlin) que habla CDP con esta misma WebView. Sin servidores.
+ *
+ * Todas las operaciones (generar / mejorar / diagnosticar) pasan por una cola:
+ * nunca hay dos sesiones CDP a la vez, que era lo que dejaba el botón bloqueado.
  */
 
 const GENERATOR_URL = 'https://perchance.org/ai-text-to-image-generator';
@@ -25,6 +28,7 @@ const GENERATOR_URL = 'https://perchance.org/ai-text-to-image-generator';
 type DevtoolsBridge = {
   generate: (prompt: string) => Promise<string | null>;
   improve: (prompt: string) => Promise<string | null>;
+  diagnose: () => Promise<string | null>;
   enableDebugging?: () => void;
 };
 
@@ -38,9 +42,19 @@ export type EngineRequest = {
   guidanceScale?: number;
 };
 
+/** Códigos de fallo que devuelve el módulo nativo. */
+export type EngineErrorCode =
+  | 'no-socket'
+  | 'no-page'
+  | 'no-ui'
+  | 'no-result'
+  | 'busy'
+  | 'engine-unavailable'
+  | 'unexpected';
+
 export type EngineResult =
   | { ok: true; url: string; dataUrl?: string; seed?: number }
-  | { ok: false; error: string };
+  | { ok: false; error: EngineErrorCode; detail?: string };
 
 type EngineContextValue = {
   ready: boolean;
@@ -48,18 +62,23 @@ type EngineContextValue = {
   status: string;
   generate: (req: EngineRequest) => Promise<EngineResult>;
   improve: (prompt: string) => Promise<{ text: string; source: 'engine' | 'local' } | null>;
+  diagnose: () => Promise<string>;
 };
 
 const EngineContext = createContext<EngineContextValue | null>(null);
 
+const KNOWN: EngineErrorCode[] = ['no-socket', 'no-page', 'no-ui', 'no-result', 'busy'];
+
 export function EngineProvider({ children }: { children: React.ReactNode }) {
   const webRef = useRef<any>(null);
-  const busyRef = useRef(false);
   const readyRef = useRef(false);
+  const queueRef = useRef<Promise<unknown>>(Promise.resolve());
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState('Motor en espera');
 
+  // Encender el inspector antes de que exista cualquier WebView (Android exige
+  // que se active antes de crear la primera): sin esto no hay socket CDP.
   useEffect(() => {
     try {
       Devtools?.enableDebugging?.();
@@ -68,78 +87,118 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const generate = useCallback(async (req: EngineRequest): Promise<EngineResult> => {
-    if (Platform.OS === 'web' || !Devtools) {
-      return { ok: false, error: 'engine-unavailable' };
-    }
-    if (busyRef.current) {
-      return { ok: false, error: 'busy' };
-    }
-    busyRef.current = true;
-    setBusy(true);
-    setStatus('Preparando motor');
-
-    try {
-      // La página del generador tiene que estar cargada antes de conducirla.
-      for (let i = 0; i < 30 && !readyRef.current; i += 1) {
-        await new Promise((r) => setTimeout(r, 500));
-      }
-
-      setStatus('Generando');
-      const out = await Devtools.generate(req.prompt);
-
-      if (!out) return { ok: false, error: 'timeout' };
-      if (out.startsWith('data:image') || out.startsWith('http')) {
-        setStatus('Listo');
-        return { ok: true, url: out, dataUrl: out.startsWith('data:') ? out : undefined };
-      }
-      return { ok: false, error: 'unexpected' };
-    } catch (e) {
-      return { ok: false, error: String((e as Error)?.message ?? e) };
-    } finally {
-      busyRef.current = false;
-      setBusy(false);
-    }
+  /** Encadena operaciones para que nunca se solapen. */
+  const enqueue = useCallback(<T,>(task: () => Promise<T>): Promise<T> => {
+    const run = queueRef.current.then(task, task);
+    queueRef.current = run.catch(() => undefined);
+    return run;
   }, []);
 
+  const waitReady = useCallback(async (budgetMs: number) => {
+    const step = 500;
+    for (let waited = 0; waited < budgetMs && !readyRef.current; waited += step) {
+      await new Promise((r) => setTimeout(r, step));
+    }
+    return readyRef.current;
+  }, []);
+
+  const generate = useCallback(
+    (req: EngineRequest): Promise<EngineResult> =>
+      enqueue(async () => {
+        if (Platform.OS === 'web' || !Devtools) {
+          return { ok: false, error: 'engine-unavailable' as const };
+        }
+        setBusy(true);
+        setStatus('Preparando motor');
+        try {
+          await waitReady(60000);
+          setStatus('Generando');
+
+          // Un solo reintento si el motor aún no estaba listo (arranque en frío).
+          let out = await Devtools.generate(req.prompt);
+          if (out && (out === 'ERR:no-socket' || out === 'ERR:no-page' || out === 'ERR:no-ui')) {
+            setStatus('Reintentando');
+            for (let i = 0; i < 8 && !readyRef.current; i += 1) {
+              await new Promise((r) => setTimeout(r, 500));
+            }
+            await new Promise((r) => setTimeout(r, 2500));
+            out = await Devtools.generate(req.prompt);
+          }
+
+          if (!out) {
+            return { ok: false, error: 'no-result' as const };
+          }
+          if (out.startsWith('ERR:')) {
+            const code = out.slice(4) as EngineErrorCode;
+            setStatus('Motor listo');
+            return { ok: false, error: KNOWN.includes(code) ? code : 'unexpected', detail: out };
+          }
+          if (out.startsWith('data:image')) {
+            setStatus('Listo');
+            return { ok: true, url: out, dataUrl: out };
+          }
+          if (out.startsWith('http')) {
+            setStatus('Listo');
+            return { ok: true, url: out };
+          }
+          return { ok: false, error: 'unexpected' as const, detail: out.slice(0, 120) };
+        } catch (e) {
+          return { ok: false, error: 'unexpected' as const, detail: String((e as Error)?.message ?? e) };
+        } finally {
+          setBusy(false);
+        }
+      }),
+    [enqueue, waitReady],
+  );
+
   /**
-   * Mejora el prompt: primero con el botón 🧠 del generador (vía CDP) y, si no
-   * responde en ~25 s, con el enriquecedor local para que nunca quede muerto.
+   * Mejora el prompt con el 🧠 del generador (misma sesión, en cola) y, si no
+   * responde, con el enriquecedor local. Al terminar el motor queda libre.
    */
   const improve = useCallback(
-    async (prompt: string): Promise<{ text: string; source: 'engine' | 'local' } | null> => {
-      if (Platform.OS === 'web') return null;
-      if (busyRef.current) return null;
-      busyRef.current = true;
-      setBusy(true);
-      setStatus('Mejorando idea');
-      try {
-        if (Devtools) {
-          for (let i = 0; i < 20 && !readyRef.current; i += 1) {
-            await new Promise((r) => setTimeout(r, 500));
+    (prompt: string): Promise<{ text: string; source: 'engine' | 'local' } | null> =>
+      enqueue(async () => {
+        if (Platform.OS === 'web') return null;
+        setBusy(true);
+        setStatus('Mejorando idea');
+        try {
+          if (Devtools) {
+            await waitReady(30000);
+            const out = await Devtools.improve(prompt);
+            if (out && out.trim().length > 3 && out.trim() !== prompt.trim()) {
+              return { text: out.trim(), source: 'engine' as const };
+            }
           }
-          const out = await Devtools.improve(prompt);
-          if (out && out.trim().length > 3 && out.trim() !== prompt.trim()) {
-            return { text: out.trim(), source: 'engine' };
-          }
+          const local = enhancePrompt(prompt);
+          return local && local !== prompt ? { text: local, source: 'local' as const } : null;
+        } catch {
+          const local = enhancePrompt(prompt);
+          return local !== prompt ? { text: local, source: 'local' as const } : null;
+        } finally {
+          setBusy(false);
+          setStatus('Motor listo');
         }
-        const local = enhancePrompt(prompt);
-        return local && local !== prompt ? { text: local, source: 'local' } : null;
-      } catch {
-        const local = enhancePrompt(prompt);
-        return local !== prompt ? { text: local, source: 'local' } : null;
-      } finally {
-        busyRef.current = false;
-        setBusy(false);
-        setStatus('Motor listo');
-      }
-    },
-    [],
+      }),
+    [enqueue, waitReady],
+  );
+
+  const diagnose = useCallback(
+    (): Promise<string> =>
+      enqueue(async () => {
+        if (!Devtools?.diagnose) return 'Diagnóstico no disponible en esta versión.';
+        await waitReady(20000);
+        try {
+          return (await Devtools.diagnose()) || 'Sin datos.';
+        } catch (e) {
+          return `Error: ${String((e as Error)?.message ?? e)}`;
+        }
+      }),
+    [enqueue, waitReady],
   );
 
   const value = useMemo<EngineContextValue>(
-    () => ({ ready, busy, status, generate, improve }),
-    [ready, busy, status, generate, improve],
+    () => ({ ready, busy, status, generate, improve, diagnose }),
+    [ready, busy, status, generate, improve, diagnose],
   );
 
   return (

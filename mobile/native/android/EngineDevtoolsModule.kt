@@ -7,8 +7,10 @@ import com.facebook.react.bridge.ReactMethod
 
 /**
  * Puente JS -> DevtoolsClient.
+ *
  * `generate` conduce el generador real dentro de la WebView oculta y devuelve
- * la imagen como data URL base64 (o null si no hubo resultado).
+ * un data URL base64, una URL http, o un código "ERR:<etapa>" si falló.
+ * `diagnose` devuelve un informe de texto con el estado del motor.
  */
 class EngineDevtoolsModule(context: ReactApplicationContext) :
   ReactContextBaseJavaModule(context) {
@@ -19,8 +21,7 @@ class EngineDevtoolsModule(context: ReactApplicationContext) :
   fun generate(prompt: String, promise: Promise) {
     Thread {
       try {
-        val result = DevtoolsClient.generate(prompt)
-        promise.resolve(result)
+        promise.resolve(DevtoolsClient.generate(prompt))
       } catch (e: Exception) {
         promise.reject("cdp_error", e)
       }
@@ -32,6 +33,17 @@ class EngineDevtoolsModule(context: ReactApplicationContext) :
     Thread {
       try {
         promise.resolve(DevtoolsClient.improve(prompt))
+      } catch (e: Exception) {
+        promise.reject("cdp_error", e)
+      }
+    }.start()
+  }
+
+  @ReactMethod
+  fun diagnose(promise: Promise) {
+    Thread {
+      try {
+        promise.resolve(DevtoolsClient.diagnose())
       } catch (e: Exception) {
         promise.reject("cdp_error", e)
       }

@@ -7,6 +7,7 @@ import { Alert, Pressable, ScrollView, StyleSheet, Switch, TextInput, View } fro
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/AppText';
+import { useEngine } from '@/components/EngineLayer';
 import { AuroraBackground } from '@/components/AuroraBackground';
 import { GhostButton, IconButton } from '@/components/Buttons';
 import { Chip } from '@/components/Chip';
@@ -40,6 +41,22 @@ export default function SettingsScreen() {
   const [engineDraft, setEngineDraft] = useState(settings.engineUrl ?? '');
   const [engine, setEngine] = useState<EngineStatus | null>(null);
   const [checking, setChecking] = useState(false);
+  const [diag, setDiag] = useState<string | null>(null);
+  const [diagBusy, setDiagBusy] = useState(false);
+  const { diagnose } = useEngine();
+
+  const runDiagnose = async () => {
+    if (diagBusy) return;
+    setDiagBusy(true);
+    try {
+      const report = await diagnose();
+      setDiag(report);
+    } catch (e) {
+      setDiag(`Error: ${String((e as Error)?.message ?? e)}`);
+    } finally {
+      setDiagBusy(false);
+    }
+  };
 
   const version = Constants.expoConfig?.version ?? BRAND.version;
 
@@ -216,6 +233,14 @@ export default function SettingsScreen() {
             />
             <Divider />
             <Row
+              icon="pulse-outline"
+              label="Diagnóstico del motor"
+              value={diagBusy ? 'Comprobando…' : 'Ejecutar'}
+              hint="Muestra dónde se detiene la generación"
+              onPress={runDiagnose}
+            />
+            <Divider />
+            <Row
               icon="server-outline"
               label="Motor propio"
               value={settings.engineUrl ? 'Personalizado' : 'Automático'}
@@ -267,6 +292,20 @@ export default function SettingsScreen() {
           Todas las imágenes se generan con IA. Úsalas de forma responsable.
         </AppText>
       </ScrollView>
+
+      <Sheet
+        visible={diag !== null}
+        onClose={() => setDiag(null)}
+        title="Diagnóstico del motor"
+        subtitle="Estado interno del generador en este dispositivo."
+      >
+        <ScrollView style={{ maxHeight: 340 }}>
+          <AppText variant="micro" color={colors.text} style={styles.diagText}>
+            {diag ?? ''}
+          </AppText>
+        </ScrollView>
+        <GhostButton label="Cerrar" icon="close" onPress={() => setDiag(null)} />
+      </Sheet>
 
       <StylePickerSheet
         visible={showStyles}
@@ -383,6 +422,7 @@ function Row({
 const Divider = () => <View style={styles.divider} />;
 
 const styles = StyleSheet.create({
+  diagText: { fontFamily: 'monospace', lineHeight: 18 },
   root: { flex: 1, backgroundColor: colors.void },
   creditCard: {
     borderRadius: radius.lg,

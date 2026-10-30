@@ -27,7 +27,7 @@ import { SectionLabel, StatusPill } from '@/components/ScreenHeader';
 import { Sheet } from '@/components/Sheet';
 import { StylePickerSheet } from '@/components/StylePickerSheet';
 import { StyleRail } from '@/components/StyleRail';
-import { ApiError, ApiErrorKind, checkEngine, downloadToFile, EngineStatus, friendlyError, generateImage, saveDataUrl } from '@/lib/api';
+import { ApiError, ApiErrorKind, checkEngine, downloadToFile, EngineStatus, engineErrorMessage, friendlyError, generateImage, saveDataUrl } from '@/lib/api';
 import { ADS_ENABLED, FREE_DAILY_CREDITS, REWARDED_AD_CREDITS } from '@/lib/config';
 import { success as hapticSuccess, warn as hapticWarn } from '@/lib/haptics';
 import { NEGATIVE_PRESETS, PROMPT_IDEAS, PROMPT_TAGS, randomIdeas } from '@/lib/prompts';
@@ -146,14 +146,8 @@ export default function CreateScreen() {
         });
         if (!engineResult.ok) {
           const kind: ApiErrorKind =
-            engineResult.error === 'timeout'
-              ? 'timeout'
-              : engineResult.error === 'challenge'
-                ? 'busy'
-                : engineResult.error === 'busy'
-                  ? 'busy'
-                  : 'server';
-          throw new ApiError(kind, friendlyError(kind));
+            engineResult.error === 'busy' ? 'busy' : engineResult.error === 'no-result' ? 'timeout' : 'server';
+          throw new ApiError(kind, engineErrorMessage(engineResult.error));
         }
         const downloaded = engineResult.dataUrl
           ? await saveDataUrl(engineResult.dataUrl)

@@ -24,16 +24,30 @@ Primera versión pública de la app.
 
 ### Corregido
 
-- **Timeout al generar en la app** (dos causas encadenadas):
+- **Timeout al generar en la app** (tres causas encadenadas):
   1. el motor elegía el primer frame con `textarea` (la página externa, con campos ocultos) en vez
      del frame real del generador;
   2. el árbol de frames se leía con una regex que exigía `id → loaderId → url`, pero los frames
-     hijos añaden `parentId` en medio, así que **solo se veía el frame raíz**.
+     hijos añaden `parentId` en medio, así que **solo se veía el frame raíz**;
+  3. el socket DevTools se buscaba leyendo `/proc/net/unix`, que desde Android 10 devuelve
+     **`EACCES`**: la app nunca encontraba su propio socket y fallaba al instante.
 
-  Ahora el frame se elige por capacidad (campo visible **y** botón de generar) y el árbol se recorre
-  como JSON (`childFrames`). Además: reintentos al abrir el socket CDP, `#generateButtonEl` con
-  alternativas, reintento del clic a los 25 s, sondeo de **todos** los frames y trazas
-  `AetherEngine` en logcat. Validado en navegador real con el mismo código: imagen en ~15 s.
+  Arreglos:
+  - socket por nombre directo `webview_devtools_remote_<pid>` (es su propio socket), con
+    `/proc/self/net/unix` y `/proc/net/unix` solo como respaldo;
+  - frame elegido por capacidad (campo visible **y** botón) y árbol recorrido como JSON;
+  - **exclusión mutua**: generar, mejorar y diagnosticar pasan por una cola, así el 🧠 y el render
+    no se pisan (era el desencadenante al añadir la mejora de prompt);
+  - antes de pulsar *generate* se espera a que el generador esté **libre** y se comprueba que el
+    render arrancó de verdad; hasta 3 intentos de clic;
+  - la imagen anterior se marca, así nunca se devuelve una vieja ni se descarta una nueva con la
+    misma URL;
+  - **diagnóstico por etapas** (`ERR:no-socket`, `no-page`, `no-ui`, `no-result`) con mensajes
+    claros en la app y trazas `AetherEngine` en logcat;
+  - Ajustes → **Diagnóstico del motor** muestra socket, target, frames y estado en el teléfono.
+
+  Validado en navegador real con los scripts exactos, **incluyendo 🧠 → generar**:
+  generador libre tras la mejora, arranque confirmado e imagen capturada en **16,4 s**.
 - Imágenes del *fallback* de Pollinations con marca de agua: se descartó ese camino.
 
 ### Notas
