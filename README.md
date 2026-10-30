@@ -3,7 +3,7 @@
 App **nativa para Android** que genera imágenes desde el propio teléfono (sin servidor) y la
 API en Python que la respalda.
 
-**[⬇️ Descargar el APK](../../releases/latest)** · [Documentación de la app](mobile/README.md) · [Referencia de la API](perchance-api.md)
+**[⬇️ Descargar el APK](https://github.com/CerberusLD/perchance-image-api/releases/latest)** · [Documentación de la app](mobile/README.md) · [Referencia de la API](perchance-api.md)
 
 - App: `mobile/` — Expo SDK 58 + React Native, tema oscuro, gratis con cuota diaria.
   El motor vive dentro del APK: una WebView oculta conduce el generador y un módulo nativo en

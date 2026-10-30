@@ -5,7 +5,7 @@ Tema oscuro, gratis con cuota diaria, pensada para crecer con anuncios recompens
 **No necesita servidor**: el motor vive dentro de la app.
 
 <p align="left">
-  <a href="../../releases/latest"><img alt="Descargar APK" src="https://img.shields.io/badge/Descargar-APK%20Android-8B5CF6?style=for-the-badge&logo=android&logoColor=white"></a>
+  <a href="https://github.com/CerberusLD/perchance-image-api/releases/latest"><img alt="Descargar APK" src="https://img.shields.io/badge/Descargar-APK%20Android-8B5CF6?style=for-the-badge&logo=android&logoColor=white"></a>
 </p>
 
 ---
@@ -69,7 +69,7 @@ sin servidor y sin marca de agua.
 
 ## 4. Instalar en el teléfono
 
-1. Descarga el APK desde [Releases](../../releases/latest).
+1. Descarga el APK desde [Releases](https://github.com/CerberusLD/perchance-image-api/releases/latest) — `Aether-1.0.0-beta.apk` (38 MB).
 2. Ábrelo en el teléfono y acepta **instalar desde orígenes desconocidos** para tu gestor de archivos.
 3. Requisitos: Android 7.0+ (API 24), ~110 MB libres, conexión a internet.
 
