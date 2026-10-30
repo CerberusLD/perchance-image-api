@@ -2,14 +2,17 @@ FROM python:3.12-slim
 
 ENV PYTHONUNBUFFERED=1 \
     DEBIAN_FRONTEND=noninteractive \
-    PORT=8000
+    PORT=8000 \
+    HEADLESS=0
 
-# Firefox / Camoufox runtime libraries
+# Firefox / Camoufox runtime libraries + Xvfb (el motor necesita una ventana real
+# para pasar el reto de Cloudflare; Xvfb la proporciona sin pantalla física)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgtk-3-0 libdbus-glib-1-2 libxt6 libasound2 libx11-xcb1 libxcomposite1 \
     libxdamage1 libxrandr2 libgbm1 libpango-1.0-0 libcairo2 libatk1.0-0 \
     libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0 libxfixes3 libxshmfence1 \
     libnss3 libnspr4 libxss1 fonts-dejavu-core ca-certificates curl \
+    xvfb x11-utils dbus-x11 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -23,4 +26,6 @@ RUN python -m camoufox fetch
 COPY perchance_client.py server.py perchance-styles.json ./
 
 EXPOSE 8000
-CMD ["gunicorn", "-w", "1", "-t", "600", "-b", "0.0.0.0:8000", "server:app"]
+
+# xvfb-run crea un display virtual para el navegador
+CMD ["xvfb-run", "-a", "-s", "-screen 0 1280x1024x24", "gunicorn", "-w", "1", "-t", "600", "-b", "0.0.0.0:8000", "server:app"]

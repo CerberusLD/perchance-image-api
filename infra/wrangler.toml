@@ -1,0 +1,6 @@
+name = "aether-api"
+main = "worker.js"
+compatibility_date = "2026-01-01"
+
+# Sin bindings: el Worker es stateless. El límite por IP es best-effort.
+# Tras `npx wrangler deploy` la URL será https://aether-api.<tu-subdominio>.workers.dev

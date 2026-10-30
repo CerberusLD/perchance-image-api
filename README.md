@@ -1,3 +1,18 @@
+# Aether — app Android + API de generación de imágenes
+
+App **nativa para Android** que genera imágenes desde el propio teléfono (sin servidor) y la
+API en Python que la respalda.
+
+**[⬇️ Descargar el APK](../../releases/latest)** · [Documentación de la app](mobile/README.md) · [Referencia de la API](perchance-api.md)
+
+- App: `mobile/` — Expo SDK 58 + React Native, tema oscuro, gratis con cuota diaria.
+  El motor vive dentro del APK: una WebView oculta conduce el generador y un módulo nativo en
+  Kotlin lee el resultado por DevTools (CDP), incluso desde un iframe de otro origen.
+- API opcional: `server.py` + Camoufox headful (Xvfb) para usar el generador desde un servidor.
+- Sin marca de agua y sin exponer el proveedor en ninguna pantalla.
+
+---
+
 # Perchance Image API — pronto para o app
 
 API completa e funcional para gerar imagens com `perchance.org/ai-text-to-image-generator`, com o problema de detecção de bots (Cloudflare Turnstile) **resolvido sem navegador**: HTTP puro com `curl_cffi`, usando o ad code como `accessCode` no `verifyUser`.
@@ -62,6 +77,23 @@ curl http://127.0.0.1:8000/styles
 # saúde
 curl http://127.0.0.1:8000/health
 ```
+
+## App móvil (Aether) y motor actual
+
+- App: `mobile/` — Expo SDK 58 + expo-router, tema oscuro, gratis con cuota diaria y gancho de anuncios.
+  Ver `mobile/README.md` para ejecutarla en el teléfono, compilar APK y publicar.
+- Motor: `server.py` + Camoufox (`perchance_client.py`). **Necesita ventana real**: `HEADLESS=0`
+  (por defecto) y `xvfb-run` en el contenedor, porque el reto de Cloudflare no se resuelve sin display.
+- Proxy neutro para la app: `infra/worker.js` (reenvía) o `infra/worker-ai.js` (genera con Workers AI).
+
+> **Importante:** la instância publicada en `perchance-image-api-vn4j.onrender.com` corresponde al
+> código antiguo (curl_cffi sin navegador). Desde IP de datacenter cae en el *fallback* de Pollinations
+> y sus imágenes llevan marca de agua `pollinations.ai`, lo que rompe el requisito de marca blanca.
+> Para servir imágenes limpias hay que redesplegar con este `Dockerfile` (Camoufox + Xvfb) o usar
+> `infra/worker-ai.js`. Comprobado: con navegador headful local, `/generate` responde `200` con
+> 768×768 JPEG, sin EXIF y sin marca de agua, en ~29 s.
+
+---
 
 ## Arquitetura: site de introdução (Pages) + API (Render)
 

@@ -1,0 +1,11 @@
+name = "aether-api"
+main = "worker-ai.js"
+compatibility_date = "2026-01-01"
+
+# Genera las imágenes dentro del Worker con Workers AI.
+# Requiere un token/plan con Workers AI (el plan gratuito ya incluye cuota diaria).
+[ai]
+binding = "AI"
+
+# Desplegar:
+#   cd infra && npx wrangler deploy -c wrangler.ai.toml

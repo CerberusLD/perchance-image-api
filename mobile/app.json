@@ -1,0 +1,65 @@
+{
+  "expo": {
+    "name": "Aether",
+    "slug": "aether-studio",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "aether",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#07070B",
+    "newArchEnabled": true,
+    "plugins": [
+      "expo-router",
+      "expo-image",
+      "expo-font",
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Aether necesita acceso a tus fotos para guardar las imágenes que creas.",
+          "savePhotosPermission": "Permite que Aether guarde tus creaciones en la galería.",
+          "isAccessMediaLocationEnabled": false
+        }
+      ],
+      "./plugins/with-engine-devtools",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "buildArchs": [
+              "arm64-v8a"
+            ]
+          }
+        }
+      ]
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.aether.studio",
+      "infoPlist": {
+        "NSPhotoLibraryAddUsageDescription": "Permite que Aether guarde tus creaciones en la galería.",
+        "NSPhotoLibraryUsageDescription": "Aether necesita acceso a tus fotos para guardar las imágenes que creas."
+      }
+    },
+    "android": {
+      "package": "com.aether.studio",
+      "edgeToEdgeEnabled": true,
+      "adaptiveIcon": {
+        "backgroundColor": "#07070B",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "permissions": [
+        "READ_MEDIA_IMAGES"
+      ],
+      "predictiveBackGestureEnabled": false,
+      "softwareKeyboardLayoutMode": "resize",
+      "usesCleartextTraffic": true
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    }
+  }
+}

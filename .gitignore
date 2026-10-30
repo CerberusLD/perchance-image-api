@@ -17,3 +17,9 @@ Thumbs.db
 out-*.txt
 test_*.jpg
 test-*.jpg
+
+# Android builds (se publican como release, no en el repo)
+*.apk
+*.aab
+keystore.properties
+*.jks

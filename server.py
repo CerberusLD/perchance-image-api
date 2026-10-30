@@ -31,6 +31,10 @@ from perchance_client import PerchanceClient, load_styles
 
 app = Flask(__name__)
 
+# El motor pasa el reto de Cloudflare con una ventana real: en el servidor se
+# ejecuta bajo Xvfb (ver Dockerfile). HEADLESS=1 fuerza el modo sin pantalla.
+HEADLESS = os.environ.get("HEADLESS", "0").strip().lower() not in ("0", "false", "no", "off")
+
 
 @app.after_request
 def _cors(resp):
@@ -60,7 +64,7 @@ class PerchanceWorker:
 
     def _run(self):
         try:
-            self._client = PerchanceClient(headless=True, humanize=True)
+            self._client = PerchanceClient(headless=HEADLESS, humanize=True)
             self._client.start()
         except Exception as e:
             self._error = e
@@ -149,6 +153,7 @@ def health():
         "ready": bool(w and w.ready),
         "engine": "perchance",
         "browser": "camoufox",
+        "headless": HEADLESS,
     })
 
 
