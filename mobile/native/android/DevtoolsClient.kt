@@ -84,6 +84,10 @@ object DevtoolsClient {
     }
   }
 
+  private fun log(msg: String) {
+    try { android.util.Log.i("AetherEngine", msg) } catch (e: Exception) {}
+  }
+
   private fun socketName(): String? = try {
     val pid = android.os.Process.myPid()
     val names = java.io.File("/proc/net/unix").readLines()
@@ -92,6 +96,7 @@ object DevtoolsClient {
     (names.firstOrNull { it.endsWith("webview_devtools_remote_$pid") }
       ?: names.firstOrNull())?.removePrefix("@")
   } catch (e: Exception) {
+    log("socketName error: ${e.message}")
     null
   }
 
@@ -109,7 +114,19 @@ object DevtoolsClient {
 
   /** /json/list por HTTP plano para descubrir la ruta del WebSocket de la página. */
   private fun pagePath(): String? {
-    val s = open() ?: return null
+    var attempt = 0
+    while (attempt < 8) {
+      attempt += 1
+      val path = pagePathOnce()
+      if (path != null) return path
+      Thread.sleep(1500)
+    }
+    log("pagePath: sin respuesta tras $attempt intentos")
+    return null
+  }
+
+  private fun pagePathOnce(): String? {
+    val s = open() ?: run { log("pagePath: sin socket"); return null }
     return try {
       val req = "GET /json/list HTTP/1.1\r\nHost: localhost:9222\r\nConnection: close\r\n\r\n"
       s.outputStream.write(req.toByteArray())
@@ -117,8 +134,11 @@ object DevtoolsClient {
       val buf = ByteArray(65536)
       val n = s.inputStream.read(buf)
       val body = String(buf, 0, maxOf(n, 0))
-      Regex("/devtools/page/[A-Fa-f0-9]+").find(body)?.value
+      val hit = Regex("/devtools/page/[A-Fa-f0-9]+").find(body)?.value
+      if (hit == null) log("pagePath: respuesta sin target (${body.take(60)})")
+      hit
     } catch (e: Exception) {
+      log("pagePath error: ${e.message}")
       null
     } finally {
       try { s.close() } catch (e: Exception) {}
@@ -180,16 +200,27 @@ object DevtoolsClient {
       return if (v == JSONObject.NULL) null else v.toString()
     }
 
+    /**
+     * Árbol de frames completo. Se recorre el JSON (no regex): los frames hijos
+     * incluyen `parentId` antes de `loaderId`, así que un patrón fijo los perdía.
+     */
     fun frames(): List<Pair<String, String>> {
-      val tree = call("Page.getFrameTree", "{}") ?: return emptyList()
-      val raw = tree.toString()
+      val res = call("Page.getFrameTree", "{}") ?: return emptyList()
       val out = ArrayList<Pair<String, String>>()
-      Regex("\"frame\":\\{\"id\":\"([^\"]+)\",\"loaderId\":\"[^\"]*\",\"url\":\"([^\"]*)\"")
-        .findAll(raw).forEach { out.add(it.groupValues[1] to it.groupValues[2]) }
-      if (out.isEmpty()) {
-        Regex("\"id\":\"([^\"]+)\",\"url\":\"([^\"]*)\"")
-          .findAll(raw).forEach { out.add(it.groupValues[1] to it.groupValues[2]) }
+
+      fun walk(node: JSONObject?) {
+        if (node == null) return
+        val frame = node.optJSONObject("frame") ?: return
+        val id = frame.optString("id", "")
+        val url = frame.optString("url", "")
+        if (id.isNotEmpty()) out.add(id to url)
+        val children = node.optJSONArray("childFrames")
+        if (children != null) {
+          for (i in 0 until children.length()) walk(children.optJSONObject(i))
+        }
       }
+
+      walk(res.optJSONObject("result")?.optJSONObject("frameTree"))
       return out
     }
   }
@@ -370,8 +401,10 @@ object DevtoolsClient {
    * si el binario no se pudo leer dentro del frame. `null` si no hubo resultado.
    */
   fun generate(prompt: String): String? {
-    val path = pagePath() ?: return null
-    val link = connectWs(path) ?: return null
+    log("generate: inicio")
+    val path = pagePath() ?: run { log("generate: sin pagePath"); return null }
+    log("generate: target $path")
+    val link = connectWs(path) ?: run { log("generate: handshake fallido"); return null }
     try {
       val session = Session(link)
       val started = System.currentTimeMillis()
@@ -389,12 +422,15 @@ object DevtoolsClient {
         }
         if (uiFrame == null) Thread.sleep(2000)
       }
+      log("generate: frames=" + session.frames().size + " uiFrame=" + (uiFrame ?: "null"))
       if (uiFrame == null) return null
 
       // 2) Prompt + clic en generar
       session.eval(uiFrame, promptScript(prompt), timeoutMs = 20000)
       Thread.sleep(1500)
+      log("generate: tipo=" + session.eval(uiFrame, PROBE_UI))
       var clicked = session.eval(uiFrame, CLICK_GENERATE, timeoutMs = 20000)
+      log("generate: click=" + clicked)
       if (clicked != "clicked") {
         Thread.sleep(2500)
         session.eval(uiFrame, CLICK_GENERATE, timeoutMs = 20000)
@@ -406,6 +442,7 @@ object DevtoolsClient {
         for ((fid, _) in session.frames()) {
           val src = session.eval(fid, READ_RESULT, timeoutMs = 12000) ?: continue
           if (src.length < 40) continue
+          log("generate: resultado en $fid (${src.take(60)})")
           val dataUrl = session.eval(fid, toDataUrlScript(src), awaitPromise = true, timeoutMs = 45000)
           if (dataUrl != null && dataUrl.startsWith("data:image")) return dataUrl
           if (src.startsWith("http")) return src

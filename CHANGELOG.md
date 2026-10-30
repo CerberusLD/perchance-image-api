@@ -24,11 +24,16 @@ Primera versión pública de la app.
 
 ### Corregido
 
-- **Timeout al generar en la app**: el motor elegía el primer frame con `textarea` (la página
-  externa, con campos ocultos) en vez del frame real del generador. Ahora selecciona el frame que
-  tiene campo visible **y** botón de generar, pulsa `#generateButtonEl` con alternativas, reintenta
-  el clic a los 25 s y busca `#resultImgEl` en **todos** los frames. Validado en navegador real:
-  imagen capturada en ~15 s.
+- **Timeout al generar en la app** (dos causas encadenadas):
+  1. el motor elegía el primer frame con `textarea` (la página externa, con campos ocultos) en vez
+     del frame real del generador;
+  2. el árbol de frames se leía con una regex que exigía `id → loaderId → url`, pero los frames
+     hijos añaden `parentId` en medio, así que **solo se veía el frame raíz**.
+
+  Ahora el frame se elige por capacidad (campo visible **y** botón de generar) y el árbol se recorre
+  como JSON (`childFrames`). Además: reintentos al abrir el socket CDP, `#generateButtonEl` con
+  alternativas, reintento del clic a los 25 s, sondeo de **todos** los frames y trazas
+  `AetherEngine` en logcat. Validado en navegador real con el mismo código: imagen en ~15 s.
 - Imágenes del *fallback* de Pollinations con marca de agua: se descartó ese camino.
 
 ### Notas
