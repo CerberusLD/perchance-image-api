@@ -35,6 +35,7 @@ import { RATIOS, ratioById } from '@/lib/ratios';
 import { saveToGallery } from '@/lib/media';
 import { STYLE_PRESETS, styleLabel, withStyle } from '@/lib/styles';
 import { colors, radius } from '@/lib/theme';
+import { checkForUpdate } from '@/lib/updater';
 import { useApp } from '@/store/app';
 
 const MAX_PROMPT = 700;
@@ -58,6 +59,20 @@ export default function CreateScreen() {
   const [generating, setGenerating] = useState(false);
   const [engine, setEngine] = useState<EngineStatus>('waking');
   const [focused, setFocused] = useState(false);
+  const [updateAvailable, setUpdateAvailable] = useState(false);
+
+  // Aviso discreto si hay versión nueva (no bloquea nada).
+  useEffect(() => {
+    let alive = true;
+    checkForUpdate()
+      .then((found) => {
+        if (alive) setUpdateAvailable(Boolean(found));
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, []);
   const [improving, setImproving] = useState(false);
   const appliedToken = useRef<string | null>(null);
 
@@ -139,7 +154,9 @@ export default function CreateScreen() {
       } else {
         const started = Date.now();
         const engineResult = await embedded.generate({
-          prompt: withStyle(clean, style),
+          // El estilo viaja aparte: el motor lo selecciona en el generador.
+          prompt: clean,
+          style,
           negativePrompt: negative.trim(),
           resolution,
           seed: Number.isFinite(parsedSeed) && parsedSeed > 0 ? parsedSeed : undefined,
@@ -240,6 +257,17 @@ export default function CreateScreen() {
                   {Number.isFinite(creditsLeft) ? `${creditsLeft} hoy` : 'Ilimitado'}
                 </AppText>
               </Pressable>
+              {updateAvailable && (
+                <Pressable
+                  onPress={() => router.push('/(tabs)/settings?check=1')}
+                  style={styles.creditPill}
+                >
+                  <Ionicons name="cloud-download-outline" size={13} color={colors.accentSoft} />
+                  <AppText variant="micro" color={colors.textDim}>
+                    Actualizar
+                  </AppText>
+                </Pressable>
+              )}
             </View>
           </View>
 

@@ -1,8 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Switch, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -20,6 +20,15 @@ import { ADS_ENABLED, BRAND, FREE_DAILY_CREDITS, REWARDED_AD_CREDITS } from '@/l
 import { RATIOS } from '@/lib/ratios';
 import { styleLabel } from '@/lib/styles';
 import { colors, radius } from '@/lib/theme';
+import {
+  canInstallPackages,
+  checkForUpdate,
+  CURRENT_VERSION,
+  downloadUpdate,
+  installUpdate,
+  openInstallSettings,
+  UpdateInfo,
+} from '@/lib/updater';
 import { useApp } from '@/store/app';
 
 export default function SettingsScreen() {
@@ -44,6 +53,58 @@ export default function SettingsScreen() {
   const [diag, setDiag] = useState<string | null>(null);
   const [diagBusy, setDiagBusy] = useState(false);
   const { diagnose } = useEngine();
+
+  const params = useLocalSearchParams<{ check?: string }>();
+  const [update, setUpdate] = useState<UpdateInfo | null>(null);
+  const [updateStep, setUpdateStep] = useState<'idle' | 'checking' | 'downloading'>('idle');
+  const [showUpdate, setShowUpdate] = useState(false);
+
+  const runUpdateCheck = async () => {
+    if (updateStep !== 'idle') return;
+    setUpdateStep('checking');
+    try {
+      const found = await checkForUpdate();
+      if (!found) {
+        showToast(`Estás en la última versión (${CURRENT_VERSION})`, 'success');
+        setUpdate(null);
+        setShowUpdate(false);
+      } else {
+        setUpdate(found);
+        setShowUpdate(true);
+      }
+    } catch {
+      showToast('No se pudo comprobar si hay actualizaciones', 'error');
+    } finally {
+      setUpdateStep('idle');
+    }
+  };
+
+  useEffect(() => {
+    if (params.check === '1') {
+      void runUpdateCheck();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.check]);
+
+  const runInstall = async () => {
+    if (!update || updateStep !== 'idle') return;
+    try {
+      const allowed = await canInstallPackages();
+      if (!allowed) {
+        await openInstallSettings();
+        showToast('Permite "instalar apps desconocidas" para Aether y vuelve a intentarlo');
+        return;
+      }
+      setUpdateStep('downloading');
+      const uri = await downloadUpdate(update);
+      await installUpdate(uri);
+      setShowUpdate(false);
+    } catch {
+      showToast('No se pudo descargar la actualización', 'error');
+    } finally {
+      setUpdateStep('idle');
+    }
+  };
 
   const runDiagnose = async () => {
     if (diagBusy) return;
@@ -260,6 +321,19 @@ export default function SettingsScreen() {
         </View>
 
         <View style={{ gap: 10 }}>
+          <SectionLabel>Actualizaciones</SectionLabel>
+          <View style={styles.group}>
+            <Row
+              icon="cloud-download-outline"
+              label="Buscar actualización"
+              value={updateStep === 'checking' ? 'Comprobando…' : CURRENT_VERSION}
+              hint="Descarga e instala la última versión sin desinstalar"
+              onPress={runUpdateCheck}
+            />
+          </View>
+        </View>
+
+        <View style={{ gap: 10 }}>
           <SectionLabel>Datos</SectionLabel>
           <View style={styles.group}>
             <Row
@@ -304,6 +378,29 @@ export default function SettingsScreen() {
           Todas las imágenes se generan con IA. Úsalas de forma responsable.
         </AppText>
       </ScrollView>
+
+      <Sheet
+        visible={showUpdate}
+        onClose={() => setShowUpdate(false)}
+        title={update ? `Nueva versión ${update.version}` : 'Actualización'}
+        subtitle={
+          update
+            ? `Tienes la ${CURRENT_VERSION} · descarga de ${update.sizeMB} MB`
+            : undefined
+        }
+      >
+        <ScrollView style={{ maxHeight: 240 }}>
+          <AppText variant="micro" color={colors.text}>
+            {update?.notes || 'Mejoras y correcciones de la última versión.'}
+          </AppText>
+        </ScrollView>
+        <GhostButton
+          label={updateStep === 'downloading' ? 'Descargando…' : 'Descargar e instalar'}
+          icon="cloud-download-outline"
+          onPress={runInstall}
+        />
+        <GhostButton label="Ahora no" onPress={() => setShowUpdate(false)} />
+      </Sheet>
 
       <Sheet
         visible={diag !== null}

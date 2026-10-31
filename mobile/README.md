@@ -196,6 +196,23 @@ Si algo falla, la generación devuelve un código de etapa (`ERR:no-socket`, `ER
 `ERR:no-ui`, `ERR:no-result`) que la app traduce a un mensaje claro, y el módulo deja trazas
 `AetherEngine` en `adb logcat -s AetherEngine`.
 
+## 8.1b Estilos: se fijan en el generador, no en el texto
+
+El generador arranca con su estilo por defecto (**`Painted Anime`**). Añadir adjetivos al prompt no
+lo cambiaba, así que casi todo salía con aire anime.
+
+Ahora el motor escribe directamente en el `<select>` de estilo del propio generador (el que más
+opciones tiene) antes de generar, comparando nombres normalizados (`NFKC`, sin acentos ni signos):
+
+```
+Cinematic · Professional Photo · Digital Painting · Oil Painting · Anime · Studio Ghibli
+Concept Art · Fantasy Portrait · Watercolor · Pixel Art · 3D Isometric Icon
+Neon Vintage Anime · Manga · Pencil · Claymation · Fantasy Landscape · Tattoo Design
+Libre -> 𝗡𝗼 𝘀𝘁𝘆𝗹𝗲
+```
+
+El prompt viaja limpio: el estilo ya no se mezcla con el texto.
+
 ## 8.2 Ediciones (gratis e ilimitada)
 
 La misma base de código produce dos APK, gobernados por `EXPO_PUBLIC_UNLIMITED`:
@@ -217,6 +234,19 @@ cd android && EXPO_PUBLIC_UNLIMITED=1 ./gradlew assembleRelease
 ```
 
 > Hay que exportar la variable también en el paso de Gradle: ahí se genera el bundle de JS.
+
+## 8.3 Actualizaciones dentro de la app
+
+Ajustes → **Actualizaciones** → *Buscar actualización*:
+
+1. `src/lib/updater.ts` pide las releases del repositorio y filtra por edición
+   (`-unlimited` o no), comparando versiones por semver.
+2. Descarga el APK con `File.downloadFileAsync` al caché de la app.
+3. `AppInstaller` (Kotlin) lo entrega al instalador del sistema vía **FileProvider**
+   (`${applicationId}.fileprovider`, rutas en `res/xml/aether_file_paths.xml`).
+4. Si falta el permiso, `ACTION_MANAGE_UNKNOWN_APP_SOURCES` abre la pantalla para concederlo.
+
+El plugin de config añade `REQUEST_INSTALL_PACKAGES`, el provider y el XML en cada `prebuild`.
 
 ## 9. Freemium y anuncios
 

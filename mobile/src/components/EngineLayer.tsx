@@ -26,7 +26,7 @@ import { enhancePrompt } from '@/lib/prompts';
 const GENERATOR_URL = 'https://perchance.org/ai-text-to-image-generator';
 
 type DevtoolsBridge = {
-  generate: (prompt: string) => Promise<string | null>;
+  generate: (prompt: string, style?: string | null) => Promise<string | null>;
   improve: (prompt: string) => Promise<string | null>;
   diagnose: () => Promise<string | null>;
   enableDebugging?: () => void;
@@ -36,6 +36,8 @@ const Devtools: DevtoolsBridge | undefined = (NativeModules as any)?.EngineDevto
 
 export type EngineRequest = {
   prompt: string;
+  /** Id del estilo; el motor lo selecciona en el propio generador. */
+  style?: string | null;
   negativePrompt?: string;
   resolution?: string;
   seed?: number;
@@ -116,14 +118,14 @@ export function EngineProvider({ children }: { children: React.ReactNode }) {
           setStatus('Generando');
 
           // Un solo reintento si el motor aún no estaba listo (arranque en frío).
-          let out = await Devtools.generate(req.prompt);
+          let out = await Devtools.generate(req.prompt, req.style ?? null);
           if (out && (out === 'ERR:no-socket' || out === 'ERR:no-page' || out === 'ERR:no-ui')) {
             setStatus('Reintentando');
             for (let i = 0; i < 8 && !readyRef.current; i += 1) {
               await new Promise((r) => setTimeout(r, 500));
             }
             await new Promise((r) => setTimeout(r, 2500));
-            out = await Devtools.generate(req.prompt);
+            out = await Devtools.generate(req.prompt, req.style ?? null);
           }
 
           if (!out) {

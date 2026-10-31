@@ -503,6 +503,35 @@ object DevtoolsClient {
     session.call("Page.setWebLifecycleState", "{\"state\":\"active\"}", 8000)
   }
 
+  /**
+   * Fija el estilo en el `<select>` del generador (el que más opciones tiene).
+   * Compara normalizando: "𝗡𝗼 𝘀𝘁𝘆𝗹𝗲" -> "nostyle", acentos y mayúsculas aparte.
+   */
+  private fun styleScript(name: String): String = """
+    (function(target){
+      function norm(s){
+        try { s = s.normalize('NFKC'); } catch(e) {}
+        return (s||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+      }
+      var sels=[].slice.call(document.querySelectorAll('select'));
+      if (!sels.length) return 'no-select';
+      var best=null, bn=-1;
+      sels.forEach(function(s){ if (s.options.length > bn) { bn = s.options.length; best = s; } });
+      if (!best || bn < 20) return 'no-style-select';
+      var t=norm(target), idx=-1;
+      for (var i=0;i<best.options.length;i++){ if (norm(best.options[i].text) === t) { idx=i; break; } }
+      if (idx < 0) return 'no-match';
+      best.selectedIndex = idx;
+      best.dispatchEvent(new Event('input',{bubbles:true}));
+      best.dispatchEvent(new Event('change',{bubbles:true}));
+      return 'set:' + best.options[idx].text;
+    })(${jsString(name)})
+  """.trimIndent()
+
+  /** Nombre exacto del estilo en el generador; "Libre" es la opción sin estilo. */
+  private fun styleOptionName(style: String?): String =
+    if (style.isNullOrBlank() || style.equals("libre", true)) "No style" else style
+
   /** Frame de la UI real: el que tiene campo visible y botón de generar. */
   private fun findUiFrame(session: Session, budgetMs: Int = 45000): String? {
     val deadline = now() + budgetMs
@@ -606,10 +635,10 @@ object DevtoolsClient {
    * reintenta una vez recargando la página: así nunca se repite la imagen del
    * prompt anterior por estado pegado de la página.
    */
-  fun generate(prompt: String): String = synchronized(lock) {
+  fun generate(prompt: String, style: String? = null): String = synchronized(lock) {
     var last = "ERR:no-result"
     for (attempt in 1..2) {
-      last = generateOnce(prompt, reloadFirst = attempt > 1)
+      last = generateOnce(prompt, style, reloadFirst = attempt > 1)
       log("generate: intento $attempt -> ${last.take(40)}")
       if (last.startsWith("data:image") || last.startsWith("http")) return last
       // Errores de canal no mejoran recargando.
@@ -619,7 +648,7 @@ object DevtoolsClient {
     return last
   }
 
-  private fun generateOnce(prompt: String, reloadFirst: Boolean): String {
+  private fun generateOnce(prompt: String, style: String?, reloadFirst: Boolean): String {
     val path = pagePath() ?: return "ERR:no-socket"
     val link = connectWs(path) ?: return "ERR:no-page"
     try {
@@ -640,6 +669,9 @@ object DevtoolsClient {
       for ((fid, _) in session.frames()) session.eval(fid, MARK_OLD, timeoutMs = 6000)
 
       if (!waitIdle(session, uiFrame, 60000)) log("generate: ocupado tras 60 s, se intenta igual")
+
+      val styleResult = session.eval(uiFrame, styleScript(styleOptionName(style)), timeoutMs = 15000)
+      log("generate: estilo(${style ?: "libre"}) -> $styleResult")
 
       if (!typePrompt(session, uiFrame, prompt)) {
         log("generate: no se pudo escribir el prompt")

@@ -42,14 +42,72 @@ module.exports = function withEngineDevtools(config) {
     },
   ]);
 
-  // 3) permitir HTTP en claro (motor propio en red local por http://)
+  // 3) permitir HTTP en claro (motor propio en red local por http://) y
+  //    habilitar la instalación de actualizaciones descargadas por la app.
   config = withAndroidManifest(config, (cfg) => {
-    const app = cfg.modResults.manifest.application?.[0];
+    const manifest = cfg.modResults.manifest;
+    const app = manifest.application?.[0];
     if (app && app.$) {
       app.$['android:usesCleartextTraffic'] = 'true';
+
+      // FileProvider para entregar el APK al instalador del sistema
+      app.provider = app.provider || [];
+      if (!app.provider.some((p) => p?.$?.['android:authorities']?.includes('fileprovider'))) {
+        app.provider.push({
+          $: {
+            'android:name': 'androidx.core.content.FileProvider',
+            'android:authorities': '${applicationId}.fileprovider',
+            'android:exported': 'false',
+            'android:grantUriPermissions': 'true',
+          },
+          'meta-data': [
+            {
+              $: {
+                'android:name': 'android.support.FILE_PROVIDER_PATHS',
+                'android:resource': '@xml/aether_file_paths',
+              },
+            },
+          ],
+        });
+      }
+    }
+
+    manifest['uses-permission'] = manifest['uses-permission'] || [];
+    const hasInstall = manifest['uses-permission'].some(
+      (p) => p?.$?.['android:name'] === 'android.permission.REQUEST_INSTALL_PACKAGES',
+    );
+    if (!hasInstall) {
+      manifest['uses-permission'].push({
+        $: { 'android:name': 'android.permission.REQUEST_INSTALL_PACKAGES' },
+      });
     }
     return cfg;
   });
+
+  // 3b) rutas del FileProvider (caché y files)
+  config = withDangerousMod(config, [
+    'android',
+    async (cfg) => {
+      const xmlDir = path.join(
+        cfg.modRequest.platformProjectRoot,
+        'app',
+        'src',
+        'main',
+        'res',
+        'xml',
+      );
+      fs.mkdirSync(xmlDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(xmlDir, 'aether_file_paths.xml'),
+        '<?xml version="1.0" encoding="utf-8"?>\n' +
+          '<paths xmlns:android="http://schemas.android.com/apk/res/android">\n' +
+          '  <cache-path name="cache" path="." />\n' +
+          '  <files-path name="files" path="." />\n' +
+          '</paths>\n',
+      );
+      return cfg;
+    },
+  ]);
 
   // 4) Edición ilimitada: otro applicationId para convivir con la versión gratis
   //    (el package de Java/Kotlin no cambia, así el módulo nativo sigue igual).

@@ -1,5 +1,27 @@
 # Changelog
 
+## v1.1.0 — estilos reales y actualizaciones dentro de la app
+
+### Corregido
+
+- **Los estilos no se aplicaban.** La app solo añadía palabras al prompt («…, luz dramática»),
+  mientras el generador arranca con su propio estilo por defecto — que resulta ser
+  **`Painted Anime`**, de ahí que casi todo saliera con aire anime.
+  Ahora el motor fija el `<select>` de estilo del propio generador por CDP antes de generar:
+  los 17 estilos de la app existen con el mismo nombre en el generador (`Cinematic`,
+  `Oil Painting`, `Studio Ghibli`, `Tattoo Design`…) y «Libre» selecciona `No style`.
+  Verificado en navegador real: el selector pasa de `Painted Anime` a cada estilo pedido y la
+  imagen se genera con él.
+
+### Añadido
+
+- **Actualizaciones dentro de la app**: Ajustes → Actualizaciones → *Buscar actualización*.
+  Compara la versión instalada con la última release del repositorio, descarga el APK al caché y
+  abre el instalador del sistema (módulo nativo `AppInstaller` + FileProvider). Si falta el permiso
+  de «instalar apps desconocidas», abre directamente esa pantalla de ajustes.
+  La edición ilimitada solo mira sus propias releases (sufijo `-unlimited`).
+- Aviso discreto «Actualizar» en la cabecera de Crear cuando hay versión nueva.
+
 ## v1.0.1 — corrección del prompt repetido
 
 ### Corregido

@@ -18,10 +18,10 @@ class EngineDevtoolsModule(context: ReactApplicationContext) :
   override fun getName(): String = "EngineDevtools"
 
   @ReactMethod
-  fun generate(prompt: String, promise: Promise) {
+  fun generate(prompt: String, style: String?, promise: Promise) {
     Thread {
       try {
-        promise.resolve(DevtoolsClient.generate(prompt))
+        promise.resolve(DevtoolsClient.generate(prompt, style))
       } catch (e: Exception) {
         promise.reject("cdp_error", e)
       }
