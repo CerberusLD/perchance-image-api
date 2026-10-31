@@ -30,7 +30,8 @@ import { StyleRail } from '@/components/StyleRail';
 import { ApiError, ApiErrorKind, checkEngine, downloadToFile, EngineStatus, engineErrorMessage, friendlyError, generateImage, saveDataUrl } from '@/lib/api';
 import { ADS_ENABLED, FREE_DAILY_CREDITS, REWARDED_AD_CREDITS } from '@/lib/config';
 import { success as hapticSuccess, warn as hapticWarn } from '@/lib/haptics';
-import { NEGATIVE_PRESETS, PROMPT_IDEAS, PROMPT_TAGS, randomIdeas } from '@/lib/prompts';
+import { improveWithModel, warmPromptModel } from '@/lib/prompt-ai';
+import { enhancePrompt, NEGATIVE_PRESETS, PROMPT_IDEAS, PROMPT_TAGS, randomIdeas } from '@/lib/prompts';
 import { RATIOS, ratioById } from '@/lib/ratios';
 import { saveToGallery } from '@/lib/media';
 import { STYLE_PRESETS, styleLabel } from '@/lib/styles';
@@ -39,7 +40,7 @@ import { ensureEnglish } from '@/lib/translate';
 import { checkForUpdate } from '@/lib/updater';
 import { useApp } from '@/store/app';
 
-const MAX_PROMPT = 700;
+const MAX_PROMPT = 2200;
 
 export default function CreateScreen() {
   const insets = useSafeAreaInsets();
@@ -61,6 +62,11 @@ export default function CreateScreen() {
   const [engine, setEngine] = useState<EngineStatus>('waking');
   const [focused, setFocused] = useState(false);
   const [updateAvailable, setUpdateAvailable] = useState(false);
+
+  // Carga el modelo de prompts en segundo plano (la primera vez tarda ~1-2 s).
+  useEffect(() => {
+    warmPromptModel();
+  }, []);
 
   // Aviso discreto si hay versión nueva (no bloquea nada).
   useEffect(() => {
@@ -104,16 +110,20 @@ export default function CreateScreen() {
     }
     setImproving(true);
     try {
-      const better = await embedded.improve(clean);
+      // Traduce al inglés y mejora con el modelo que viaja dentro de la app.
+      const better = await improveWithModel(clean);
       if (better) {
         setPrompt(better.text.slice(0, MAX_PROMPT));
         hapticSuccess();
-        showToast(
-          better.source === 'engine' ? 'Idea mejorada por el generador' : 'Idea mejorada',
-          'success',
-        );
+        showToast('Prompt mejorado', 'success');
       } else {
-        showToast('No se pudo mejorar ahora mismo', 'error');
+        const fallback = enhancePrompt(clean);
+        if (fallback && fallback !== clean) {
+          setPrompt(fallback.slice(0, MAX_PROMPT));
+          showToast('Prompt ampliado', 'success');
+        } else {
+          showToast('No se pudo mejorar ahora mismo', 'error');
+        }
       }
     } finally {
       setImproving(false);

@@ -1,5 +1,23 @@
 # Changelog
 
+## v1.3.0 — mejorador de prompts con modelo propio dentro de la app
+
+### Cambiado
+
+- El botón **mejorar** ya no usa la página: traduce el prompt al inglés y lo pasa al modelo
+  empaquetado en el APK (`PromptGenerator`, MDLM de 11,3M parámetros en formato largo).
+- Flujo exacto: prompt del usuario → traducción al inglés (silenciosa) → modelo local →
+  resultado como nuevo prompt (~130 palabras con iluminación, composición, cámara y acabado).
+- Respaldo: si el modelo no está disponible, se usa el ampliador local de siempre.
+
+### Técnico
+
+- Export a ONNX + cuantización int8 (11,5 MB), paridad top-20 del 95 % frente a PyTorch.
+- Tokenizador BPE byte-level portado a Kotlin, verificado idéntico al original (5/5).
+- Puntuado restringido a las columnas de los candidatos: 14 pasadas por mejora.
+- ONNX Runtime Android + assets del modelo copiados por el plugin de config en cada `prebuild`.
+- APK: 39 MB → 63 MB.
+
 ## v1.2.0 — una sola edición, prompt traducido y todos los estilos
 
 ### Añadido

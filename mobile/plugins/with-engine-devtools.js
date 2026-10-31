@@ -29,6 +29,16 @@ function copySources(projectRoot, androidRoot) {
     if (!file.endsWith('.kt')) continue;
     fs.copyFileSync(path.join(from, file), path.join(to, file));
   }
+
+  // Modelo de prompts local (ONNX + tokenizer + plantilla) dentro del APK
+  const modelsFrom = path.join(projectRoot, 'assets', 'prompt_model');
+  if (fs.existsSync(modelsFrom)) {
+    const modelsTo = path.join(androidRoot, 'app', 'src', 'main', 'assets', 'prompt_model');
+    fs.mkdirSync(modelsTo, { recursive: true });
+    for (const file of fs.readdirSync(modelsFrom)) {
+      fs.copyFileSync(path.join(modelsFrom, file), path.join(modelsTo, file));
+    }
+  }
 }
 
 module.exports = function withEngineDevtools(config) {
@@ -80,6 +90,17 @@ module.exports = function withEngineDevtools(config) {
       manifest['uses-permission'].push({
         $: { 'android:name': 'android.permission.REQUEST_INSTALL_PACKAGES' },
       });
+    }
+    return cfg;
+  });
+
+  // 2b) ONNX Runtime para el modelo de prompts (inferencia en el dispositivo)
+  config = withAppBuildGradle(config, (cfg) => {
+    if (!cfg.modResults.contents.includes('onnxruntime-android')) {
+      cfg.modResults.contents = cfg.modResults.contents.replace(
+        /dependencies\s*\{/,
+        'dependencies {\n    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.20.0")',
+      );
     }
     return cfg;
   });

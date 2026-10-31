@@ -235,6 +235,23 @@ cd android && EXPO_PUBLIC_UNLIMITED=1 ./gradlew assembleRelease
 
 > Hay que exportar la variable también en el paso de Gradle: ahí se genera el bundle de JS.
 
+## 8.2b Mejora de prompt con modelo local
+
+El botón 🧠 usa un modelo propio empaquetado en el APK (`assets/prompt_model/`):
+
+| pieza | contenido |
+|---|---|
+| `scorer.int8.onnx` | MDLM 11,3M params exportado a ONNX y cuantizado (11,5 MB) |
+| `tokenizer.json` | BPE byte-level, 12 288 tokens |
+| `enhance.json` | plantilla de 14 grupos, pools de candidatos, categorías |
+
+Flujo: **prompt del usuario → traducción al inglés → modelo → nuevo prompt**.
+
+- `PromptEnhancer.kt` puntúa todos los candidatos de cada grupo en una pasada
+  (logits restringidos a las columnas de los candidatos, 14 pasadas en total) y monta la plantilla.
+- `BpeTokenizer.kt` implementa el tokenizador byte-level en Kotlin (sin librerías externas).
+- Se entrena/exporta desde `../PromptGenerator` con `tools/export_prompt_model.py`.
+
 ## 8.3 Actualizaciones dentro de la app
 
 Ajustes → **Actualizaciones** → *Buscar actualización*:
