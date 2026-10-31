@@ -9,7 +9,7 @@ import Constants from 'expo-constants';
 import { File, Paths } from 'expo-file-system';
 import { NativeModules, Platform } from 'react-native';
 
-import { UNLIMITED } from './config';
+import { UPDATE_CHANNEL } from './config';
 
 const REPO = 'CerberusLD/perchance-image-api';
 
@@ -72,7 +72,11 @@ export async function checkForUpdate(): Promise<UpdateInfo | null> {
 
   const mine = list
     .filter((r) => !r.draft && typeof r.tag_name === 'string')
-    .filter((r) => (UNLIMITED ? /-unlimited$/i.test(r.tag_name!) : !/-unlimited$/i.test(r.tag_name!)))
+    .filter((r) =>
+      UPDATE_CHANNEL === 'unlimited'
+        ? /-unlimited$/i.test(r.tag_name!)
+        : !/-unlimited$/i.test(r.tag_name!),
+    )
     .map((r) => {
       const apk = (r.assets ?? []).find((a) => (a.name ?? '').toLowerCase().endsWith('.apk'));
       if (!apk?.browser_download_url) return null;

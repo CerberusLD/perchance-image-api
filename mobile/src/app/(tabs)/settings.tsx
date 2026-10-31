@@ -208,6 +208,7 @@ export default function SettingsScreen() {
               }}
             />
           </View>
+          {Number.isFinite(FREE_DAILY_CREDITS) && (
           <GhostButton
             label={ADS_ENABLED ? `Ver anuncio (+${REWARDED_AD_CREDITS})` : 'Conseguir más creaciones'}
             icon="add-circle-outline"
@@ -220,6 +221,7 @@ export default function SettingsScreen() {
               }
             }}
           />
+          )}
         </View>
 
         <View style={{ gap: 10 }}>

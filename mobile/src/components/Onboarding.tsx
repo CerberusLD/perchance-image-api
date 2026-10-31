@@ -24,13 +24,15 @@ const SLIDES = [
   {
     icon: 'options-outline' as const,
     title: 'Dirige el resultado',
-    body: 'Elige entre 18 estilos, seis formatos y ajustes finos como la semilla o el prompt negativo. Tú marcas el rumbo.',
+    body: 'Elige entre más de 70 estilos, seis formatos y ajustes finos como la semilla o el prompt negativo. Tú marcas el rumbo.',
     tint: ['rgba(34,211,238,0.28)', 'rgba(7,7,11,0)'] as const,
   },
   {
     icon: 'albums-outline' as const,
     title: 'Tu colección, en tu móvil',
-    body: `Todo lo que creas se guarda en la app, sin subir nada. Tienes ${FREE_DAILY_CREDITS} creaciones gratis cada día.`,
+    body: Number.isFinite(FREE_DAILY_CREDITS)
+      ? `Todo lo que creas se guarda en la app, sin subir nada. Tienes ${FREE_DAILY_CREDITS} creaciones gratis cada día.`
+      : 'Todo lo que creas se guarda en la app, sin subir nada. Genera todas las imágenes que quieras: sin límites.',
     tint: ['rgba(244,114,182,0.25)', 'rgba(7,7,11,0)'] as const,
   },
 ];

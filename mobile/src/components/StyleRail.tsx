@@ -4,7 +4,7 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/AppText';
 import { select as hapticSelect } from '@/lib/haptics';
-import { STYLE_PRESETS, StylePreset } from '@/lib/styles';
+import { POPULAR_STYLES, STYLE_PRESETS, StylePreset } from '@/lib/styles';
 import { colors, radius } from '@/lib/theme';
 
 type Props = {
@@ -31,20 +31,24 @@ export function StyleRail({ value, onChange, onOpenAll }: Props) {
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.rail}
       >
-        {STYLE_PRESETS.slice(0, 8).map((preset) => (
-          <StyleTile
-            key={preset.id ?? 'free'}
-            preset={preset}
-            active={value === preset.id}
-            onPress={() => {
-              hapticSelect();
-              onChange(preset.id);
-            }}
-          />
-        ))}
+        {POPULAR_STYLES.map((id) => {
+          const preset = STYLE_PRESETS.find((p) => p.id === (id ?? null));
+          if (!preset) return null;
+          return (
+            <StyleTile
+              key={preset.id ?? 'free'}
+              preset={preset}
+              active={value === preset.id}
+              onPress={() => {
+                hapticSelect();
+                onChange(preset.id);
+              }}
+            />
+          );
+        })}
         <Pressable onPress={onOpenAll} style={styles.moreTile}>
           <AppText variant="caption" color={colors.textDim} align="center">
-            +{STYLE_PRESETS.length - 8}
+            +{STYLE_PRESETS.length - POPULAR_STYLES.length}
             {'\n'}más
           </AppText>
         </Pressable>

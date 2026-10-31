@@ -33,14 +33,20 @@ export const API_FALLBACK = ENABLE_FALLBACK ? trim(FALLBACK_BASE) : null;
 export const REQUEST_TIMEOUT_MS = 240_000;
 
 /**
- * Variante de la app. `EXPO_PUBLIC_UNLIMITED=1` compila la edición con
- * generaciones infinitas (misma base de código, otro APK y otro package).
+ * Edición única: generaciones sin límite para todos.
+ * Se mantiene la constante para que la interfaz sepa que no hay cuota.
  */
-export const UNLIMITED = process.env.EXPO_PUBLIC_UNLIMITED === '1';
-export const APP_VARIANT: 'free' | 'unlimited' = UNLIMITED ? 'unlimited' : 'free';
+export const UNLIMITED = true;
 
-/** Créditos gratis por día (base del modelo freemium). Infinito en la variante ilimitada. */
-export const FREE_DAILY_CREDITS = UNLIMITED ? Number.POSITIVE_INFINITY : 25;
+/**
+ * Canal de actualizaciones. `EXPO_PUBLIC_UNLIMITED=1` solo lo usan builds
+ * antiguos de la edición separada; la app actual mira las releases normales.
+ */
+export const UPDATE_CHANNEL: 'main' | 'unlimited' =
+  process.env.EXPO_PUBLIC_UNLIMITED === '1' ? 'unlimited' : 'main';
+
+/** Sin cuota diaria: el contador queda desactivado. */
+export const FREE_DAILY_CREDITS = Number.POSITIVE_INFINITY;
 
 /** Créditos extra que otorgará un anuncio recompensado (fase anuncios). */
 export const REWARDED_AD_CREDITS = 5;

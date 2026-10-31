@@ -33,8 +33,9 @@ import { success as hapticSuccess, warn as hapticWarn } from '@/lib/haptics';
 import { NEGATIVE_PRESETS, PROMPT_IDEAS, PROMPT_TAGS, randomIdeas } from '@/lib/prompts';
 import { RATIOS, ratioById } from '@/lib/ratios';
 import { saveToGallery } from '@/lib/media';
-import { STYLE_PRESETS, styleLabel, withStyle } from '@/lib/styles';
+import { STYLE_PRESETS, styleLabel } from '@/lib/styles';
 import { colors, radius } from '@/lib/theme';
+import { ensureEnglish } from '@/lib/translate';
 import { checkForUpdate } from '@/lib/updater';
 import { useApp } from '@/store/app';
 
@@ -140,12 +141,16 @@ export default function CreateScreen() {
       const parsedSeed = seed.trim() ? Number.parseInt(seed.trim(), 10) : -1;
       const resolution = ratioById(ratio).resolution;
 
+      // El generador entiende mejor el inglés: se traduce en silencio
+      // (si ya lo está o el traductor falla, se usa el texto tal cual).
+      const { text: promptEn } = await ensureEnglish(clean);
+
       // Dos modos: motor propio por HTTP (si está configurado) o motor embebido
       // en la WebView invisible (sin servidor).
       let result: { uri: string; durationMs: number };
       if (settings.engineUrl) {
         result = await generateImage({
-          prompt: clean,
+          prompt: promptEn,
           negativePrompt: negative.trim(),
           style,
           resolution,
@@ -155,7 +160,7 @@ export default function CreateScreen() {
         const started = Date.now();
         const engineResult = await embedded.generate({
           // El estilo viaja aparte: el motor lo selecciona en el generador.
-          prompt: clean,
+          prompt: promptEn,
           style,
           negativePrompt: negative.trim(),
           resolution,

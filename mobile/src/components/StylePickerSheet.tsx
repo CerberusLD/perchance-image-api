@@ -5,7 +5,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { AppText } from '@/components/AppText';
 import { Sheet } from '@/components/Sheet';
 import { select as hapticSelect } from '@/lib/haptics';
-import { STYLE_PRESETS } from '@/lib/styles';
+import { stylesByGroup } from '@/lib/styles';
 import { colors, radius } from '@/lib/theme';
 
 type Props = {
@@ -21,10 +21,15 @@ export function StylePickerSheet({ visible, value, onChange, onClose }: Props) {
       visible={visible}
       onClose={onClose}
       title="Estilo visual"
-      subtitle="Define la textura, la luz y el acabado de tu imagen."
+      subtitle={`Todos los estilos del motor: ${stylesByGroup().reduce((n, g) => n + g.items.length, 0)}.`}
     >
-      <View style={styles.grid}>
-        {STYLE_PRESETS.map((preset) => {
+      {stylesByGroup().map(({ group, items }) => (
+        <View key={group} style={{ gap: 8 }}>
+          <AppText variant="label" color={colors.textMuted}>
+            {group.toUpperCase()}
+          </AppText>
+          <View style={styles.grid}>
+            {items.map((preset) => {
           const active = value === preset.id;
           return (
             <Pressable
@@ -48,14 +53,16 @@ export function StylePickerSheet({ visible, value, onChange, onClose }: Props) {
                 <AppText variant="bodyStrong" color={active ? '#fff' : colors.text} numberOfLines={1}>
                   {preset.label}
                 </AppText>
-                <AppText variant="micro" color="rgba(167,167,184,0.85)" numberOfLines={2}>
+                <AppText variant="micro" color="rgba(167,167,184,0.85)" numberOfLines={1}>
                   {preset.hint}
                 </AppText>
               </LinearGradient>
             </Pressable>
-          );
-        })}
-      </View>
+                );
+              })}
+          </View>
+        </View>
+      ))}
     </Sheet>
   );
 }
@@ -64,7 +71,7 @@ const styles = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingBottom: 12 },
   cell: { width: '31.5%', flexGrow: 1 },
   card: {
-    minHeight: 104,
+    minHeight: 92,
     borderRadius: radius.md,
     padding: 12,
     gap: 4,

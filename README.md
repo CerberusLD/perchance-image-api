@@ -5,15 +5,13 @@ API en Python que la respalda.
 
 **[⬇️ Descargar el APK](https://github.com/CerberusLD/perchance-image-api/releases/latest)** · [Documentación de la app](mobile/README.md) · [Referencia de la API](perchance-api.md)
 
-### Ediciones
+### Descarga
 
-| Edición | Cuota | Descarga | `applicationId` |
-|---|---|---|---|
-| **Aether** (sin límite desde 1.1.1) | — | [v1.1.1](https://github.com/CerberusLD/perchance-image-api/releases/tag/v1.1.1) | `com.aether.studio` |
-| **Aether Unlimited** | sin límite | [v1.1.1-unlimited](https://github.com/CerberusLD/perchance-image-api/releases/tag/v1.1.1-unlimited) | `com.aether.studio.unlimited` |
+**[Aether 1.2.0](https://github.com/CerberusLD/perchance-image-api/releases/tag/v1.2.0)** —
+edición única, `com.aether.studio`, **generaciones sin límite**.
 
-Se instalan por separado: puedes tener las dos a la vez. La edición ilimitada sale del mismo
-código compilada con `EXPO_PUBLIC_UNLIMITED=1`.
+Desde la 1.2.0 hay una sola edición: desaparece la variante *Unlimited* (sus releases quedan
+como histórico). Se actualiza desde la propia app: Ajustes → Actualizaciones.
 
 - App: `mobile/` — Expo SDK 58 + React Native, tema oscuro, gratis con cuota diaria.
   El motor vive dentro del APK: una WebView a pantalla completa detrás de la interfaz conduce el

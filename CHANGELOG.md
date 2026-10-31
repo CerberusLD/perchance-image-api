@@ -1,5 +1,23 @@
 # Changelog
 
+## v1.2.0 — una sola edición, prompt traducido y todos los estilos
+
+### Añadido
+
+- **Traducción automática del prompt al inglés**, invisible para el usuario: escribe en
+  cualquier idioma y se traduce antes de renderizar (si ya está en inglés, se envía tal cual;
+  si el traductor no responde, se usa el original para no bloquear nada). El historial guarda el
+  texto que escribiste, no la traducción.
+- **Todos los estilos del generador**: 79 en total (antes 18), con los nombres exactos que usa el
+  motor, agrupados en Básicos, Anime, Pintura, Ilustración, 3D, Fotografía, Vintage y Fantasía.
+  La barra rápida muestra los más usados y «Ver todos» abre el listado completo.
+
+### Cambiado
+
+- **Una sola edición sin cuota**: desaparece la variante *Unlimited*. `FREE_DAILY_CREDITS` es
+  infinito para todos y se elimina el contador y el gancho de anuncios de la interfaz.
+- Se retira `app.config.js` y el cambio de `applicationId` por variante.
+
 ## v1.1.1 — sin límite diario
 
 - Se elimina la cuota diaria en el paquete principal (`com.aether.studio`): `EXPO_PUBLIC_UNLIMITED=1`
