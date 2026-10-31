@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.1.1 — sin límite diario
+
+- Se elimina la cuota diaria en el paquete principal (`com.aether.studio`): `EXPO_PUBLIC_UNLIMITED=1`
+  en el build, `FREE_DAILY_CREDITS` infinito y `consumeCredit()` sin descuento.
+- `versionCode` 2 para que el instalador la trate como actualización de la 1.1.0.
+- Se puede instalar **desde la propia app** (Ajustes → Actualizaciones) sobre la versión anterior,
+  conservando imágenes y ajustes.
+
 ## v1.1.0 — estilos reales y actualizaciones dentro de la app
 
 ### Corregido
