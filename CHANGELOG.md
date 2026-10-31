@@ -1,5 +1,16 @@
 # Changelog
 
+## v1.3.3 — variedad real en el mejorador
+
+### Corregido
+
+- **Salían casi siempre los mismos prompts.** El puntuado entre candidatos es muy plano
+  (0,17-0,23 de diferencia) y se elegía con **argmax**, que colapsa a la misma combinación:
+  10-14 de los 14 grupos repetían opción sin importar el sujeto.
+- Ahora se **muestrea** por probabilidad (temperatura 0,85 sobre los 4 mejores candidatos), igual
+  que el pipeline de entrenamiento. Medido: argmax daba resultado idéntico en 3/3 intentos;
+  el muestreo da 6/6 combinaciones distintas con 1-4 opciones por grupo.
+
 ## v1.3.2 — el mejorador de prompts deja de cerrar la app
 
 ### Corregido

@@ -34,6 +34,10 @@ object PromptEnhancer {
   private var stopWords: Set<String> = emptySet()
   private var maxLen = 64
 
+  /** Muestreo del grupo: mismo criterio que el entrenamiento (0.85 / 4). */
+  private val TEMPERATURE = 0.85
+  private val TOP_K = 4
+
   private fun log(msg: String) {
     try { android.util.Log.i(TAG, msg) } catch (e: Exception) {}
   }
@@ -165,6 +169,28 @@ object PromptEnhancer {
     return categoryMap["default"] ?: "an object"
   }
 
+  /**
+   * Elige una opción por probabilidad (temperatura + top-k), como el muestreo del
+   * entrenamiento. Con argmax salía siempre la misma combinación: las diferencias
+   * entre candidatos son pequeñas (0.17-0.23 en log-prob) y el argmax colapsa.
+   */
+  private fun sampleIndex(scores: DoubleArray, temperature: Double, topK: Int, rnd: java.util.Random): Int {
+    if (scores.isEmpty()) return 0
+    val order = scores.indices.sortedByDescending { scores[it] }
+    val k = if (topK in 1 until scores.size) topK else scores.size
+    val top = order.take(k)
+    val z = top.map { scores[it] / maxOf(1e-3, temperature) }
+    val mx = z.max()
+    val exps = z.map { Math.exp(it - mx) }
+    val sum = exps.sum()
+    var r = rnd.nextDouble() * sum
+    for (i in exps.indices) {
+      r -= exps[i]
+      if (r <= 0.0) return top[i]
+    }
+    return top.last()
+  }
+
   // ------------------------------------------------------------ puntuado
   /**
    * Puntúa todos los candidatos de un grupo en UNA pasada.
@@ -282,13 +308,13 @@ object PromptEnhancer {
     val cat = categoryOf(head)
 
     val chosen = HashMap<String, String>()
+    val rnd = java.util.Random()
     var passes = 0
     for ((tag, pool) in pools) {
       val scores = scoreCandidates(subject, tag, 1, pool)
       passes += 1
-      var best = 0
-      for (i in scores.indices) if (scores[i] > scores[best]) best = i
-      chosen[tag] = pool[best]
+      val pick = sampleIndex(scores, TEMPERATURE, TOP_K, rnd)
+      chosen[tag] = pool[pick]
     }
 
     var text = template
