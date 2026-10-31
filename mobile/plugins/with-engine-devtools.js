@@ -59,6 +59,9 @@ module.exports = function withEngineDevtools(config) {
     const app = manifest.application?.[0];
     if (app && app.$) {
       app.$['android:usesCleartextTraffic'] = 'true';
+      // El motor de prompts (ONNX) convive con la WebView del generador: se
+      // necesita heap ampliado para no morir por memoria en gama media.
+      app.$['android:largeHeap'] = 'true';
 
       // FileProvider para entregar el APK al instalador del sistema
       app.provider = app.provider || [];

@@ -80,21 +80,68 @@ object PromptEnhancer {
 
       tok = BpeTokenizer.fromStream(app.assets.open("$ASSET_DIR/tokenizer.json"))
 
-      val modelBytes = app.assets.open("$ASSET_DIR/scorer.int8.onnx").use { it.readBytes() }
+      // El grafo se copia una vez a disco y se abre por ruta: ORT lo mapea en
+      // memoria en lugar de tener 12 MB extra en el heap de la app.
+      val modelFile = copyAssetIfNeeded(app, "scorer.int8.onnx")
       env = OrtEnvironment.getEnvironment()
       val opts = OrtSession.SessionOptions().apply {
         setIntraOpNumThreads(2)
         setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT)
+        try {
+          setCPUArenaAllocator(false)
+        } catch (e: Exception) {
+          // versiones antiguas de ORT no lo exponen
+        }
       }
-      session = env!!.createSession(modelBytes, opts)
+      session = env!!.createSession(modelFile.absolutePath, opts)
 
-      log("cargado en ${System.currentTimeMillis() - started} ms (pesos ${modelBytes.size / 1024 / 1024} MB)")
+      log("cargado en ${System.currentTimeMillis() - started} ms (${modelFile.length() / 1024 / 1024} MB)")
       true
     } catch (e: Exception) {
       log("error cargando: ${e.message}")
       session = null
       false
     }
+  }
+
+  /** true si hay margen suficiente para cargar el grafo (~60 MB de pico). */
+  private fun hasEnoughMemory(context: Context): Boolean {
+    return try {
+      val am = context.getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+      val info = android.app.ActivityManager.MemoryInfo()
+      am.getMemoryInfo(info)
+      val heapFree = Runtime.getRuntime().maxMemory() - (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory())
+      log("memoria: avail=${info.availMem / 1024 / 1024} MB · heapLibre=${heapFree / 1024 / 1024} MB · largeHeap=${am.isLowRamDevice}")
+      info.availMem > 350L * 1024 * 1024 || heapFree > 120L * 1024 * 1024
+    } catch (e: Exception) {
+      true
+    }
+  }
+
+  /** Copia un asset a filesDir (una sola vez) y devuelve el fichero. */
+  private fun copyAssetIfNeeded(context: Context, name: String): java.io.File {
+    val dir = java.io.File(context.filesDir, ASSET_DIR)
+    if (!dir.exists()) dir.mkdirs()
+    val target = java.io.File(dir, name)
+    val assetSize = try {
+      context.assets.openFd("$ASSET_DIR/$name").use { it.length }
+    } catch (e: Exception) {
+      -1L
+    }
+    if (target.exists() && (assetSize <= 0 || target.length() == assetSize)) return target
+
+    context.assets.open("$ASSET_DIR/$name").use { input ->
+      java.io.FileOutputStream(target).use { output ->
+        val buf = ByteArray(64 * 1024)
+        while (true) {
+          val n = input.read(buf)
+          if (n <= 0) break
+          output.write(buf, 0, n)
+        }
+        output.flush()
+      }
+    }
+    return target
   }
 
   // ------------------------------------------------------------- sujeto
@@ -169,13 +216,17 @@ object PromptEnhancer {
     colList.forEach { colsBuf.put(it.toLong()) }
     colsBuf.rewind()
 
-    val res = s.run(
-      mapOf(
-        "ids" to OnnxTensor.createTensor(env, idsBuf, longArrayOf(b.toLong(), seq.toLong())),
-        "sel" to OnnxTensor.createTensor(env, selBuf, longArrayOf(selBuf.capacity().toLong())),
-        "cols" to OnnxTensor.createTensor(env, colsBuf, longArrayOf(colList.size.toLong())),
-      )
-    )
+    val e = env ?: return DoubleArray(candidates.size)
+    val idsTensor = OnnxTensor.createTensor(e, idsBuf, longArrayOf(b.toLong(), seq.toLong()))
+    val selTensor = OnnxTensor.createTensor(e, selBuf, longArrayOf(selBuf.capacity().toLong()))
+    val colsTensor = OnnxTensor.createTensor(e, colsBuf, longArrayOf(colList.size.toLong()))
+    val res = try {
+      s.run(mapOf("ids" to idsTensor, "sel" to selTensor, "cols" to colsTensor))
+    } finally {
+      idsTensor.close()
+      selTensor.close()
+      colsTensor.close()
+    }
 
     val tensor = res[0] as OnnxTensor
     val buffer = tensor.floatBuffer
@@ -209,7 +260,20 @@ object PromptEnhancer {
   // ---------------------------------------------------------------- API
   /** Mejora un prompt ya en inglés. Devuelve el texto final o null. */
   @Synchronized
-  fun enhance(context: Context, subjectRaw: String): String? {
+  fun enhance(context: Context, subjectRaw: String): String? = try {
+    enhanceInner(context, subjectRaw)
+  } catch (e: Throwable) {
+    log("enhance falló: ${e.message}")
+    null
+  }
+
+  private fun enhanceInner(context: Context, subjectRaw: String): String? {
+    // Con la WebView del generador abierta, un móvil de gama media puede quedarse
+    // sin memoria: mejor no cargar el modelo que morir por OOM.
+    if (!hasEnoughMemory(context)) {
+      log("memoria insuficiente, se omite el modelo")
+      return null
+    }
     if (!ensureLoaded(context)) return null
     val subject = subjectRaw.lowercase().replace(Regex("\\s+"), " ").trim().trim(',')
     if (subject.isBlank()) return null
