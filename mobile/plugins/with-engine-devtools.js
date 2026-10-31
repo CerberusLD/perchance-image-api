@@ -108,6 +108,28 @@ module.exports = function withEngineDevtools(config) {
     return cfg;
   });
 
+  // 2c) ONNX Runtime por JNI: R8 no puede ofuscar sus clases o la app aborta
+  config = withDangerousMod(config, [
+    'android',
+    async (cfg) => {
+      const rules = path.join(cfg.modRequest.platformProjectRoot, 'app', 'proguard-rules.pro');
+      const block =
+        '\n# ONNX Runtime usa JNI y busca sus clases por nombre: no se pueden ofuscar\n' +
+        '-keep class ai.onnxruntime.** { *; }\n' +
+        '-dontwarn ai.onnxruntime.**\n';
+      let current = '';
+      try {
+        current = fs.readFileSync(rules, 'utf8');
+      } catch (e) {
+        current = '';
+      }
+      if (!current.includes('ai.onnxruntime')) {
+        fs.appendFileSync(rules, block);
+      }
+      return cfg;
+    },
+  ]);
+
   // 3b) rutas del FileProvider (caché y files)
   config = withDangerousMod(config, [
     'android',

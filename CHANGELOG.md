@@ -1,5 +1,22 @@
 # Changelog
 
+## v1.3.2 — el mejorador de prompts deja de cerrar la app
+
+### Corregido
+
+- **Cierre al pulsar mejorar**: no era memoria, era **R8**. El release ofusca el código y ONNX
+  Runtime busca sus clases por nombre desde JNI (`convertToTensorInfo` → `GetMethodID`), así que al
+  renombrarse la llamada nativa abortaba el proceso (`JNI DETECTED ERROR: java_class == null`).
+- Reglas de ProGuard (`-keep class ai.onnxruntime.** { *; }`) aplicadas por el plugin de config en
+  cada `prebuild`.
+- Se mantienen las mejoras de la 1.3.1: grafo por ruta (mmap), comprobación previa de memoria,
+  `largeHeap`, cierre de tensores y captura de errores.
+
+## v1.3.1 — arreglo del cierre al mejorar el prompt
+
+- Primera aproximación al cierre: carga del grafo por ruta, sin arena allocator, `largeHeap` y
+  comprobación de memoria. No era la causa (era R8), pero reduce el pico de RAM de forma útil.
+
 ## v1.3.0 — mejorador de prompts con modelo propio dentro de la app
 
 ### Cambiado

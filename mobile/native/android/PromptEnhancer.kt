@@ -48,6 +48,7 @@ object PromptEnhancer {
       val started = System.currentTimeMillis()
       val app = context.applicationContext
 
+      log("paso 1/5: leyendo enhance.json")
       val enhance = JSONObject(
         app.assets.open("$ASSET_DIR/enhance.json").bufferedReader().use { it.readText() }
       )
@@ -78,27 +79,25 @@ object PromptEnhancer {
       val st = enhance.getJSONArray("stop")
       stopWords = (0 until st.length()).map { st.getString(it) }.toSet()
 
+      log("paso 2/5: tokenizer")
       tok = BpeTokenizer.fromStream(app.assets.open("$ASSET_DIR/tokenizer.json"))
 
       // El grafo se copia una vez a disco y se abre por ruta: ORT lo mapea en
       // memoria en lugar de tener 12 MB extra en el heap de la app.
+      log("paso 3/5: copiando grafo")
       val modelFile = copyAssetIfNeeded(app, "scorer.int8.onnx")
+      log("paso 4/5: entorno ORT (${modelFile.length() / 1024 / 1024} MB en ${modelFile.absolutePath})")
       env = OrtEnvironment.getEnvironment()
       val opts = OrtSession.SessionOptions().apply {
-        setIntraOpNumThreads(2)
-        setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT)
-        try {
-          setCPUArenaAllocator(false)
-        } catch (e: Exception) {
-          // versiones antiguas de ORT no lo exponen
-        }
+        setIntraOpNumThreads(1)
       }
+      log("paso 5/5: creando sesión")
       session = env!!.createSession(modelFile.absolutePath, opts)
 
       log("cargado en ${System.currentTimeMillis() - started} ms (${modelFile.length() / 1024 / 1024} MB)")
       true
-    } catch (e: Exception) {
-      log("error cargando: ${e.message}")
+    } catch (e: Throwable) {
+      log("error cargando: ${e.javaClass.simpleName}: ${e.message}")
       session = null
       false
     }
